@@ -1,5 +1,6 @@
 import sys
 import traceback
+import os
 
 try:
     print("1. pygame importieren...")
@@ -11,8 +12,13 @@ try:
     print("   OK")
     
     print("3. pygame.mixer.init()...")
-    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
-    print("   OK")
+    try:
+        pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+        print("   OK")
+    except pygame.error as e:
+        # Audio device may not be available in headless environments (e.g., CI/CD with xvfb)
+        print(f"   WARN: Mixer nicht verfügbar ({e}) - Audio deaktiviert")
+        print("   (Dies ist in Headless-CI-Umgebungen erwartungsgemäß)")
     
     print("4. Config importieren...")
     from pytank import Config
