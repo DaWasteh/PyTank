@@ -8,11 +8,11 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v4
@@ -27,18 +27,26 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y xvfb libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libsdl2-gfx-dev
-
+    
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install flake8 pytest
-
+        
     - name: Lint with flake8
       run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --statistics --max-line-length=120
-
-    - name: Test with pytest
+        flake8 pytank.py tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 pytank.py tests/ --count --statistics --max-line-length=120
+        
+    - name: Run test_start.py
       run: |
-        xvfb-run python -m pytest tests/ -v --tb=short
+        xvfb-run python tests/test_start.py
+        
+    - name: Run test_sound.py
+      run: |
+        xvfb-run python tests/test_sound.py
+        
+    - name: Run test_exe.py
+      run: |
+        xvfb-run python tests/test_exe.py

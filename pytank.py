@@ -1,9 +1,7 @@
 import pygame
 import random
 import math
-import sys
 import threading
-from enum import Enum
 
 # ============================================================================
 # KONFIGURATION
