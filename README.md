@@ -1,7 +1,5 @@
 # PyTank - Tank Battle Arena
 
-![PyTank Logo](https://via.placeholder.com/400x200/2552150/FFFFFF?text=PyTank)
-
 Ein modernes 2D-Tank-Spiel mit verbessertem Audio-System, intelligenter KI und ansprechendem Design.
 
 ## 📋 Features
@@ -18,7 +16,7 @@ Ein modernes 2D-Tank-Spiel mit verbessertem Audio-System, intelligenter KI und a
 
 ### Voraussetzungen
 
-- Python 3.8 oder neuer
+- Python 3.10 oder neuer
 - Pygame (`pip install pygame`)
 
 ### Installation
@@ -146,9 +144,7 @@ Pull Requests sind willkommen! Bitte achte darauf:
 Dieses Projekt steht unter der MIT-Lizenz - siehe die LICENSE-Datei für Details.
 📞 Kontakt
 
-Dein Name - deine-email@example.com
-
-Projekt-Link: https://github.com/dein-benutzername/pytank
+Projekt-Link: https://github.com/DaWasteh/pytank
 text
 
 

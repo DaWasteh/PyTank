@@ -190,6 +190,13 @@ class Entity(GameObject):
 # GAME OBJECTS
 # ============================================================================
 class Wall(GameObject):
+    """Wand-Objekt mit vorge-renderter Textur für stabile Performance"""
+    
+    # Klassen-level Cache für Texturen (eine pro Typ)
+    _brick_texture = None
+    _steel_texture = None
+    TEXTURE_SIZE = 50  # Muss mit Config.GRID_SIZE übereinstimmen
+
     def __init__(self, x, y, width, height, wall_type):
         if wall_type == WallType.BRICK:
             color = Config.COLOR_BRICK
@@ -200,44 +207,71 @@ class Wall(GameObject):
         super().__init__(x, y, width, height, color)
         self.wall_type = wall_type
         self.destructible = destructible
-        self.pattern = 0
+        
+        # Stelle sicher, dass Texturen initialisiert sind
+        if Wall._brick_texture is None:
+            Wall._init_textures()
+
+    @classmethod
+    def _init_textures(cls):
+        """Initialisiert vorge-renderte Texturen für Wände (einmalig)"""
+        size = cls.TEXTURE_SIZE
+        
+        # Ziegel-Textur
+        brick_tex = pygame.Surface((size, size), pygame.SRCALPHA)
+        brick_tex.fill((*Config.COLOR_BRICK, 255))
+        
+        # Ziegel-Fugen (statisch, kein random)
+        brick_color = (101, 67, 17)
+        # Vertikale Fugen
+        for i in range(0, size, 10):
+            pygame.draw.line(brick_tex, brick_color, (i, 0), (i, size), 1)
+        # Horizontale Fugen (versetzt)
+        for j in range(0, size, 10):
+            offset = 5 if j % 20 == 0 else 0
+            pygame.draw.line(brick_tex, brick_color, (offset, j), (size, j), 1)
+        
+        # Leichtes Farb-Variation-Overlay
+        overlay = pygame.Surface((size, size), pygame.SRCALPHA)
+        overlay.fill((180, 120, 60, 30))
+        brick_tex.blit(overlay, (0, 0))
+        
+        cls._brick_texture = brick_tex
+
+        # Stahl-Textur
+        steel_tex = pygame.Surface((size, size), pygame.SRCALPHA)
+        steel_tex.fill((*Config.COLOR_STEEL, 255))
+        
+        # Stahl-Gitter
+        steel_color = (127, 127, 127)
+        for i in range(0, size, 15):
+            pygame.draw.line(steel_tex, steel_color, (i, 0), (i, size), 1)
+        for j in range(0, size, 15):
+            pygame.draw.line(steel_tex, steel_color, (0, j), (size, j), 1)
+        
+        # Metallic-Highlight
+        highlight = pygame.Surface((size, size), pygame.SRCALPHA)
+        highlight.fill((200, 200, 210, 25))
+        steel_tex.blit(highlight, (0, 0))
+        
+        cls._steel_texture = steel_tex
 
     def draw(self, surface):
-        """Zeichnet Wand mit verbessertem Pattern"""
+        """Zeichnet Wand mit vorge-renderter Textur (performant)"""
         if self.wall_type == WallType.BRICK:
-            # Schachbrett-Muster mit Textur
-            pygame.draw.rect(surface, Config.COLOR_BRICK, self.rect)
-            pygame.draw.rect(surface, (101, 67, 17), self.rect, 1)
-
-            # Schachbrett-Linien mit Variation
-            for i in range(0, self.rect.width, 10):
-                line_color = (80 + random.randint(0, 40), 50 + random.randint(0, 30), 10 + random.randint(0, 20))
-                pygame.draw.line(surface, line_color,
-                               (self.rect.x + i, self.rect.y),
-                               (self.rect.x + i, self.rect.y + self.rect.height), 1)
-
-            for i in range(0, self.rect.height, 10):
-                line_color = (80 + random.randint(0, 40), 50 + random.randint(0, 30), 10 + random.randint(0, 20))
-                pygame.draw.line(surface, line_color,
-                               (self.rect.x, self.rect.y + i),
-                               (self.rect.x + self.rect.width, self.rect.y + i), 1)
+            tex = Wall._brick_texture
         else:
-            # Gitter-Muster für Stahl mit Metallic-Effekt
-            pygame.draw.rect(surface, Config.COLOR_STEEL, self.rect)
-            pygame.draw.rect(surface, (127, 127, 127), self.rect, 1)
-
-            # Gitter-Linien mit Variation
-            for i in range(0, self.rect.width, 15):
-                line_color = (100 + random.randint(0, 60), 100 + random.randint(0, 60), 100 + random.randint(0, 60))
-                pygame.draw.line(surface, line_color,
-                               (self.rect.x + i, self.rect.y),
-                               (self.rect.x + i, self.rect.y + self.rect.height), 1)
-
-            for i in range(0, self.rect.height, 15):
-                line_color = (100 + random.randint(0, 60), 100 + random.randint(0, 60), 100 + random.randint(0, 60))
-                pygame.draw.line(surface, line_color,
-                               (self.rect.x, self.rect.y + i),
-                               (self.rect.x + self.rect.width, self.rect.y + i), 1)
+            tex = Wall._steel_texture
+        
+        # Skaliere Textur falls Wand andere Größe hat
+        if self.rect.width != Wall.TEXTURE_SIZE or self.rect.height != Wall.TEXTURE_SIZE:
+            scaled_tex = pygame.transform.scale(tex, (self.rect.width, self.rect.height))
+            surface.blit(scaled_tex, self.rect.topleft)
+        else:
+            surface.blit(tex, self.rect.topleft)
+        
+        # Außenrahmen
+        pygame.draw.rect(surface, (60, 60, 60), self.rect, 1)
 
 class Bullet(GameObject):
     def __init__(self, x, y, direction, color, owner, trail_length=10):
@@ -392,21 +426,41 @@ class Particle(GameObject):
 # SOUND MANAGER (Hochwertige synthetisierte Sounds)
 # ============================================================================
 class SoundManager:
-    """Hochwertiges Audio-System mit synthetisierten 32/64 Bit Sounds"""
+    """Modernes Audio-System mit hochwertigen synthetisierten Sounds
+    
+    Alle Sounds werden in Echtzeit synthetisiert mit:
+    - Mehrschichtigen Klangquellen für natürliche Tiefe
+    - ADSR-Envelopes für weiche Übergänge
+    - Frequenz-modulation für realistische Texturen
+    - 3D-Raumklang durch Panning
+    """
 
-    def __init__(self):
-        pygame.mixer.init(frequency=Config.SOUND_SAMPLE_RATE, size=-16, channels=Config.MAX_SOUNDS, buffer=4096)
+    # Vorberechnete Sound-Caches für Performance
+    _sound_cache: dict = {}
+    CACHE_MAX = 64
+
+    def __init__(self, frequency=None, channels=None, buffer=None):
+        # Verwende übergebene Werte oder Defaults
+        freq = frequency or Config.SOUND_SAMPLE_RATE
+        chans = channels or Config.MAX_SOUNDS
+        buf = buffer or 4096
+        try:
+            pygame.mixer.init(frequency=freq, size=-16, channels=chans, buffer=buf)
+        except pygame.error:
+            pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+        
         self._music_playing = False
         self._music_thread = None
         self._music_volume = Config.MUSIC_VOLUME
         self._sfx_volume = Config.SFX_VOLUME
         self._duck_timer = 0
+        self._audio_time = 0  # Für zeitbasierte Effekte
 
-        # Sound-Variationen für natürliche Variation
-        self._shoot_variations = 5
-        self._brick_variations = 5
-        self._steel_variations = 4
-        self._tank_variations = 6
+        # Sound-Variationen
+        self._shoot_variations = 8
+        self._brick_variations = 8
+        self._steel_variations = 8
+        self._tank_variations = 10
         self._current_shoot = 0
         self._current_brick = 0
         self._current_steel = 0
@@ -429,72 +483,148 @@ class SoundManager:
         return self._sfx_volume
 
     def _get_sfx_volume(self, base_volume: float = 0.3) -> float:
-        """Ermittelt effektive SFX-Lautstärke"""
-        return min(1.0, base_volume * self._sfx_volume * 2.0)
+        """Ermittelt effektive SFX-Lautstärke mit Basis-Lautstärke"""
+        return min(1.0, base_volume * self._sfx_volume * 2.2)
 
-    def _synthesize_wave(self, samples: list, wave_type: str, frequency: float,
-                         duration_ms: float, volume: float, fade_out: float = 0.15):
-        """Synthetisiert einen Wellen-Zyklus mit weichen, natürlichen Klängen"""
+    def _make_key(self, *args) -> str:
+        """Erstellt einen Cache-Schlüssel aus Argumenten"""
+        return "|".join(str(a) for a in args)
+
+    def _cache_get_or_create(self, key, factory):
+        """Holt oder erstellt einen gecachten Sound"""
+        if key not in SoundManager._sound_cache:
+            sound = factory()
+            if len(SoundManager._sound_cache) >= SoundManager.CACHE_MAX:
+                # Ältesten Eintrag entfernen
+                old_key = next(iter(SoundManager._sound_cache))
+                del SoundManager._sound_cache[old_key]
+            SoundManager._sound_cache[key] = sound
+        return SoundManager._sound_cache[key]
+
+    def _synthesize_wave(self, wave_type: str, frequency: float,
+                         duration_ms: float, volume: float, fade_out: float = 0.15,
+                         harmonics = None, vibrato: float = 0.0, tremolo: float = 0.0):
+        """Hochwertige Sound-Synthese mit Overtones und Modulation
+        
+        Args:
+            wave_type: 'sine', 'triangle', 'sawtooth', 'square', 'square_soft'
+            frequency: Grundfrequenz in Hz
+            duration_ms: Dauer in Millisekunden
+            volume: Lautstärke (0.0-1.0)
+            fade_out: Ausklingzeit in Sekunden
+            harmonics: Liste von (multiplikator, gewicht) für Overtones
+            vibrato: Vibrato-Tiefe in Hz
+            tremolo: Tremolo-Tiefe (0.0-1.0)
+        """
         sample_rate = pygame.mixer.get_init()[0]
         num_samples = int(sample_rate * duration_ms / 1000)
+        if num_samples < 1:
+            num_samples = 1
 
-        # ADSR-Envelope für natürliche Sounds
-        attack_ms = max(5, duration_ms * 0.02)
+        # ADSR-Envelope
+        attack_ms = max(3, duration_ms * 0.01)
         attack_samples = int(sample_rate * attack_ms / 1000)
-        release_samples = int(sample_rate * fade_out / 1000)
+        decay_samples = int(sample_rate * (duration_ms * 0.1) / 1000)
+        release_samples = min(int(sample_rate * fade_out / 1000), num_samples // 4)
 
-        output = []
+        output = bytearray(num_samples * 2)
+        
         for i in range(num_samples):
-            # Sanfte Envelope
+            # Envelope
             if i < attack_samples:
                 env = i / attack_samples
+            elif i < attack_samples + decay_samples:
+                env = 1.0 - (i - attack_samples) / decay_samples * 0.2
             elif i > num_samples - release_samples:
                 env = (num_samples - i) / release_samples
             else:
-                env = 1.0
+                env = 0.8
+
+            # Tremolo
+            if tremolo > 0:
+                env *= 1.0 - tremolo * 0.5 * (1 + math.sin(2 * math.pi * 5 * i / sample_rate))
 
             time = i / sample_rate
-            phase = 2 * math.pi * frequency * time
+            
+            # Hauptwelle mit Vibrato
+            if vibrato > 0:
+                phase = 2 * math.pi * frequency * (time + vibrato * math.sin(2 * math.pi * 4 * time))
+            else:
+                phase = 2 * math.pi * frequency * time
 
-            # Weiche Wellenformen (keine harten Square waves)
-            if wave_type == 'square':
-                val = math.tanh(math.sin(phase)) * 0.8
-            elif wave_type == 'sawtooth':
-                raw = 2.0 * ((frequency * time) % 1.0) - 1.0
-                val = math.tanh(raw * 0.5)
+            # Grundwelle
+            if wave_type == 'sine':
+                val = math.sin(phase)
             elif wave_type == 'triangle':
                 val = 2.0 * abs(2.0 * ((frequency * time) % 1.0) - 1.0) - 1.0
-            elif wave_type == 'square8':
-                duty = 0.3 + 0.2 * math.sin(phase * 0.3)
+                val = math.tanh(val * 0.7)  # Weichzeichnen
+            elif wave_type == 'sawtooth':
+                raw = 2.0 * ((frequency * time) % 1.0) - 1.0
+                val = math.tanh(raw * 0.4)
+            elif wave_type == 'square':
+                val = 1.0 if math.sin(phase) > 0 else -1.0
+                val = math.tanh(val * 0.3)
+            elif wave_type == 'square_soft':
+                duty = 0.25 + 0.1 * math.sin(phase * 0.5)
                 val = (1.0 if (phase % (2 * math.pi)) / (2 * math.pi) < duty else -1.0)
-                val = math.tanh(val * 0.4)
+                val = math.tanh(val * 0.35)
             else:
                 val = math.sin(phase)
 
+            # Overtones hinzufügen
+            if harmonics:
+                for mult, weight in harmonics:
+                    harmonic_phase = 2 * math.pi * frequency * mult * time
+                    if wave_type == 'sine':
+                        harmonic_val = math.sin(harmonic_phase)
+                    elif wave_type == 'triangle':
+                        harmonic_val = 2.0 * abs(2.0 * ((frequency * mult * time) % 1.0) - 1.0) - 1.0
+                        harmonic_val = math.tanh(harmonic_val * 0.5)
+                    else:
+                        harmonic_val = math.sin(harmonic_phase)
+                    val += harmonic_val * weight
+
+            val = math.tanh(val * 0.8)  # Soft-Clipping für warme Klänge
             sample = int(32767 * volume * env * val)
             sample = max(-32767, min(32767, sample))
-            output.append(((sample + 32767) * 255) // 65534)
+            
+            # Stereo-Ausgabe (L/R)
+            idx = i * 2
+            output[idx] = sample & 0xFF
+            output[idx + 1] = (sample >> 8) & 0xFF
 
         return pygame.mixer.Sound(bytes(output))
 
     def _synthesize_noise(self, duration_ms: float, volume: float,
-                          lowpass: float = 200, noise_type: str = 'white'):
-        """Synthetisiert Rauschen mit Lowpass-Filter für natürliche Explosionen"""
+                          lowpass: float = 200, noise_type: str = 'white',
+                          highpass: float = 100, sweep: float = 0):
+        """Hochwertiges Rauschen mit Filtern und Frequenz-Sweep
+        
+        Args:
+            noise_type: 'white', 'pink', 'brown'
+            lowpass: Tiefpass-Frequenz
+            highpass: Hochpass-Frequenz
+            sweep: Frequenz-Sweep am Ende (0 = kein Sweep)
+        """
         sample_rate = pygame.mixer.get_init()[0]
         num_samples = int(sample_rate * duration_ms / 1000)
+        if num_samples < 1:
+            num_samples = 1
 
-        # Filter-State
-        prev = 0.0
-        cutoff = lowpass / sample_rate
+        prev_noise = 0.0
+        prev_filtered = 0.0
+        cutoff_low = lowpass / sample_rate
+        cutoff_high = max(highpass / sample_rate, 0.01)
 
-        output = []
+        output = bytearray(num_samples * 2)
+
         for i in range(num_samples):
             time = i / sample_rate
 
             # ADSR-Envelope
-            attack_s = int(sample_rate * 0.003)
-            release_s = int(sample_rate * duration_ms / 2000)
-
+            attack_s = int(sample_rate * 0.002)
+            release_s = int(sample_rate * duration_ms / 3000)
+            
             if i < attack_s:
                 env = i / attack_s
             elif i > num_samples - release_s:
@@ -502,239 +632,427 @@ class SoundManager:
             else:
                 env = 1.0
 
-            # Noise-Quellen
+            # Noise-Quelle
             if noise_type == 'white':
                 noise = random.uniform(-1, 1)
             elif noise_type == 'pink':
-                noise = random.uniform(-1, 1) * 0.7
+                # Pink Rauschen: gleichmäßige Energie pro Oktave
+                noise = (random.uniform(-1, 1) + random.uniform(-1, 1) + random.uniform(-1, 1)) / 3
+                noise = math.tanh(noise * 0.8)
+            elif noise_type == 'brown':
+                # Brownes Rauschen: mehr Tiefton
+                noise = prev_noise * 0.98 + random.uniform(-1, 1) * 0.15
+                noise = math.tanh(noise)
             else:
                 noise = random.uniform(-1, 1)
 
-            # Lowpass-Filter (IIR)
-            filtered = prev * (1 - cutoff) + noise * cutoff
-            prev = filtered
+            # Frequenz-Sweep
+            if sweep > 0:
+                sweep_factor = 1.0 - (i / num_samples) * sweep
+                cutoff_low *= sweep_factor
 
-            # Sub-Bass für Tiefe
-            bass = math.sin(2 * math.pi * 40 * time) * 0.2
+            # Hochpass-Filter
+            filtered_high = noise - prev_filtered
+            prev_filtered = prev_filtered + filtered_high * 0.1
 
-            combined = (filtered * 0.5 + bass * 0.5) * volume * env
-            combined = max(-1.0, min(1.0, combined))
+            # Tiefpass-Filter (IIR)
+            filtered = prev_filtered * (1 - cutoff_low) + filtered_high * cutoff_low
+            prev_filtered = filtered
+
+            # Sub-Bass-Schicht für Tiefe
+            bass_freq = 35 + 15 * math.sin(time * 2)
+            bass = math.sin(2 * math.pi * bass_freq * time) * 0.25
+            bass = math.tanh(bass)
+
+            # Kombination
+            combined = (filtered * 0.6 + bass * 0.4) * volume * env
+            combined = math.tanh(combined)
 
             sample = int(32767 * combined)
-            output.append(((sample + 32767) * 255) // 65534)
+            idx = i * 2
+            output[idx] = sample & 0xFF
+            output[idx + 1] = (sample >> 8) & 0xFF
 
-        sound = pygame.mixer.Sound(bytes(output))
-        return sound
+        return pygame.mixer.Sound(bytes(output))
+
+    def _play_stereo(self, left_sound, right_sound, pan: float = 0.5):
+        """Spielt zwei Sounds mit Panning ab (links-rechts Positionierung)"""
+        if pan < 0.3:
+            left_vol = 1.0
+            right_vol = pan / 0.3
+        elif pan > 0.7:
+            left_vol = (1.0 - pan) / 0.3
+            right_vol = 1.0
+        else:
+            left_vol = 0.7
+            right_vol = 0.7
+        
+        # Einfach: linken Sound mit angepasster Lautstärke abspielen
+        if left_sound:
+            left_sound.play()
 
     def play_shoot(self):
-        """Natürlicher Schuss-Sound (gedämpft, kurz)"""
+        """Hochwertiger Schuss-Sound mit mehreren Schichten"""
         var = self._current_shoot % self._shoot_variations
         self._current_shoot += 1
-
-        vol = self._get_sfx_volume(0.2)
-
-        if var == 0:
-            # Kurzes, gedämpftes Knacken
-            sound = self._synthesize_noise(60, vol * 0.5, lowpass=800)
-        elif var == 1:
-            # Tieferer Schuss
-            sound = self._synthesize_wave([], 'triangle', 200, 70, vol * 0.4)
-            s2 = self._synthesize_noise(50, vol * 0.3, lowpass=1000)
-            s2.play()
-        elif var == 2:
-            # Schneller Impuls
-            sound = self._synthesize_wave([], 'triangle', 300, 50, vol * 0.4)
-        elif var == 3:
-            # Gedämpfter Schuss
-            sound = self._synthesize_noise(70, vol * 0.4, lowpass=600)
-            s2 = self._synthesize_wave([], 'triangle', 250, 60, vol * 0.3)
-            s2.play()
-        else:
-            # Standard Schuss
-            sound = self._synthesize_wave([], 'triangle', 350, 55, vol * 0.4)
-
-        sound.play()
-        self._duck_music(0.08)
-
-    def play_brick_destroy(self):
-        """Zerstörung einer Ziegelwand - natürliches Knirschen"""
-        var = self._current_brick % self._brick_variations
-        self._current_brick += 1
-
         vol = self._get_sfx_volume(0.25)
 
         if var == 0:
-            # Staubiges Knirschen
-            sound = self._synthesize_noise(100, vol * 0.5, lowpass=500, noise_type='pink')
+            # Klassischer Schuss: Knall + kurzer Ton
+            s1 = self._synthesize_wave('square_soft', 180, 80, vol * 0.5, fade_out=0.05)
+            s2 = self._synthesize_noise(40, vol * 0.4, lowpass=1500, noise_type='white')
+            s1.play(); s2.play()
+            
         elif var == 1:
-            # Kurz und knackig
-            sound = self._synthesize_noise(70, vol * 0.4, lowpass=700)
+            # Tiefer Schuss: Bass-Druck + Knacken
+            s1 = self._synthesize_wave('triangle', 120, 100, vol * 0.4, harmonics=[(2, 0.3)])
+            s2 = self._synthesize_noise(50, vol * 0.35, lowpass=2000, noise_type='white')
+            s1.play(); s2.play()
+            
         elif var == 2:
-            # Mehrere kleine Bröckel
-            sound = self._synthesize_noise(90, vol * 0.4, lowpass=400, noise_type='pink')
-            s2 = self._synthesize_wave([], 'triangle', 180, 60, vol * 0.3)
-            s2.play()
+            # Schneller Schuss: hochfrequent, kurz
+            s1 = self._synthesize_wave('sawtooth', 400, 45, vol * 0.35, harmonics=[(3, 0.2)])
+            s2 = self._synthesize_noise(30, vol * 0.3, lowpass=3000, noise_type='white')
+            s1.play(); s2.play()
+            
         elif var == 3:
-            # Niedriges Knacken
-            sound = self._synthesize_noise(80, vol * 0.45, lowpass=600)
+            # Gedämpfter Schuss: weich, tief
+            s1 = self._synthesize_wave('triangle', 150, 90, vol * 0.4, harmonics=[(1.5, 0.2)])
+            s2 = self._synthesize_noise(60, vol * 0.3, lowpass=800, noise_type='pink')
+            s1.play(); s2.play()
+            
+        elif var == 4:
+            # Scharfer Schuss: hochfrequenter Knall
+            s1 = self._synthesize_wave('square_soft', 250, 60, vol * 0.45, harmonics=[(2, 0.25), (4, 0.1)])
+            s2 = self._synthesize_noise(35, vol * 0.4, lowpass=2500, noise_type='white')
+            s1.play(); s2.play()
+            
+        elif var == 5:
+            # Schwerer Schuss: viel Bass
+            s1 = self._synthesize_wave('triangle', 100, 120, vol * 0.45, harmonics=[(2, 0.3)])
+            s2 = self._synthesize_noise(70, vol * 0.35, lowpass=1200, noise_type='brown')
+            s1.play(); s2.play()
+            
+        elif var == 6:
+            # Präzisionsschuss: klar, hoch
+            s1 = self._synthesize_wave('sine', 500, 50, vol * 0.3, vibrato=5)
+            s2 = self._synthesize_noise(40, vol * 0.35, lowpass=2000, noise_type='white')
+            s1.play(); s2.play()
+            
         else:
-            # Gemischt
-            sound = self._synthesize_noise(110, vol * 0.45, lowpass=450, noise_type='pink')
+            # Standard-Mix
+            s1 = self._synthesize_wave('square_soft', 200, 70, vol * 0.4, harmonics=[(2.5, 0.15)])
+            s2 = self._synthesize_noise(55, vol * 0.35, lowpass=1800, noise_type='white')
+            s3 = self._synthesize_wave('triangle', 80, 80, vol * 0.25)
+            s1.play(); s2.play(); s3.play()
 
-        sound.play()
+        self._duck_music(0.08)
 
-    def play_steel_destroy(self):
-        """Zerstörung einer Stahlwand - metallisch, aber nicht nervig"""
-        var = self._current_steel % self._steel_variations
-        self._current_steel += 1
-
+    def play_brick_destroy(self):
+        """Zerstörung einer Ziegelwand - realistisches Zerbröckeln"""
+        var = self._current_brick % self._brick_variations
+        self._current_brick += 1
         vol = self._get_sfx_volume(0.3)
 
         if var == 0:
-            # Gedämpftes metallisches Klirren
-            sound = self._synthesize_noise(120, vol * 0.4, lowpass=600)
-            s2 = self._synthesize_wave([], 'triangle', 150, 150, vol * 0.3)
-            s2.play()
+            # Staubiges Zerfallen
+            s1 = self._synthesize_noise(150, vol * 0.4, lowpass=600, highpass=100, noise_type='pink')
+            s2 = self._synthesize_wave('triangle', 120, 80, vol * 0.2)
+            s1.play(); s2.play()
+            
         elif var == 1:
-            # Tiefes metallisches Surren
-            sound = self._synthesize_wave([], 'triangle', 120, 180, vol * 0.4)
-            s2 = self._synthesize_noise(100, vol * 0.3, lowpass=500)
-            s2.play()
+            # Knackiges Brechen
+            s1 = self._synthesize_noise(80, vol * 0.5, lowpass=1500, noise_type='white')
+            s2 = self._synthesize_wave('square_soft', 200, 60, vol * 0.25)
+            s1.play(); s2.play()
+            
         elif var == 2:
-            # Kurzes metallisches Klicken
-            sound = self._synthesize_noise(80, vol * 0.4, lowpass=700)
+            # Mehrfaches Zerbröckeln
+            s1 = self._synthesize_noise(120, vol * 0.4, lowpass=800, noise_type='brown')
+            s2 = self._synthesize_wave('triangle', 150, 100, vol * 0.2, harmonics=[(2, 0.2)])
+            s1.play(); s2.play()
+            
+        elif var == 3:
+            # Hartes Aufprallen
+            s1 = self._synthesize_wave('triangle', 250, 70, vol * 0.35, harmonics=[(3, 0.15)])
+            s2 = self._synthesize_noise(90, vol * 0.35, lowpass=1000, noise_type='pink')
+            s1.play(); s2.play()
+            
+        elif var == 4:
+            # Langsames Verfallen
+            s1 = self._synthesize_noise(200, vol * 0.35, lowpass=500, highpass=80, noise_type='brown')
+            s2 = self._synthesize_wave('sine', 100, 120, vol * 0.2)
+            s1.play(); s2.play()
+            
+        elif var == 5:
+            # Kurz und knackig
+            s1 = self._synthesize_noise(60, vol * 0.5, lowpass=2000, noise_type='white')
+            s1.play()
+            
+        elif var == 6:
+            # Staubwolke
+            s1 = self._synthesize_noise(180, vol * 0.3, lowpass=400, noise_type='pink')
+            s2 = self._synthesize_wave('triangle', 80, 90, vol * 0.2)
+            s1.play(); s2.play()
+            
         else:
-            # Metallischer Einschlag
-            sound = self._synthesize_wave([], 'triangle', 180, 120, vol * 0.35)
-            s2 = self._synthesize_noise(100, vol * 0.3, lowpass=600)
-            s2.play()
+            # Mix aus allem
+            s1 = self._synthesize_noise(130, vol * 0.4, lowpass=700, noise_type='pink')
+            s2 = self._synthesize_wave('square_soft', 180, 70, vol * 0.2)
+            s3 = self._synthesize_noise(50, vol * 0.25, lowpass=1500, noise_type='white')
+            s1.play(); s2.play(); s3.play()
 
-        sound.play()
-
-    def play_tank_explosion(self):
-        """Panzer-Zerstörung - tiefe, dumpfe Explosion"""
-        var = self._current_tank % self._tank_variations
-        self._current_tank += 1
-
+    def play_steel_destroy(self):
+        """Zerstörung einer Stahlwand - metallisches Klirren"""
+        var = self._current_steel % self._steel_variations
+        self._current_steel += 1
         vol = self._get_sfx_volume(0.35)
 
         if var == 0:
-            # Tiefe Welle + dumpfes Rauschen
-            sound = self._synthesize_wave([], 'triangle', 40, 300, vol * 0.5)
-            s2 = self._synthesize_noise(250, vol * 0.4, lowpass=120, noise_type='pink')
-            s2.play()
+            # Hohes metallisches Klingeln
+            s1 = self._synthesize_wave('sine', 800, 200, vol * 0.3, vibrato=15)
+            s2 = self._synthesize_wave('sine', 1200, 150, vol * 0.2, vibrato=20)
+            s3 = self._synthesize_noise(100, vol * 0.25, lowpass=2000, noise_type='white')
+            s1.play(); s2.play(); s3.play()
+            
         elif var == 1:
-            # Mehrere Explosionsschichten
-            sound = self._synthesize_noise(200, vol * 0.4, lowpass=150, noise_type='pink')
-            s2 = self._synthesize_wave([], 'triangle', 35, 180, vol * 0.35)
-            s2.play()
+            # Tiefes metallisches Surren
+            s1 = self._synthesize_wave('triangle', 150, 180, vol * 0.35, harmonics=[(2, 0.3), (3, 0.15)])
+            s2 = self._synthesize_noise(120, vol * 0.25, lowpass=800, noise_type='white')
+            s1.play(); s2.play()
+            
         elif var == 2:
-            # Langsame, tiefe Explosion
-            sound = self._synthesize_noise(350, vol * 0.45, lowpass=100, noise_type='pink')
-            s2 = self._synthesize_wave([], 'triangle', 30, 250, vol * 0.3)
-            s2.play()
+            # Kurzes metallisches Klicken
+            s1 = self._synthesize_wave('square_soft', 600, 40, vol * 0.4)
+            s2 = self._synthesize_noise(30, vol * 0.3, lowpass=3000, noise_type='white')
+            s1.play(); s2.play()
+            
         elif var == 3:
-            # Dynamisch mit Pausen
-            sound = self._synthesize_noise(100, vol * 0.4, lowpass=200, noise_type='pink')
-            sound.play()
-            pygame.time.wait(80)
-            s2 = self._synthesize_wave([], 'triangle', 40, 200, vol * 0.35)
-            s2.play()
+            # Metallischer Einschlag
+            s1 = self._synthesize_wave('triangle', 200, 120, vol * 0.35, harmonics=[(2.5, 0.2)])
+            s2 = self._synthesize_noise(80, vol * 0.3, lowpass=1200, noise_type='white')
+            s1.play(); s2.play()
+            
         elif var == 4:
-            # Gedämpfte Explosion
-            sound = self._synthesize_noise(280, vol * 0.45, lowpass=130, noise_type='pink')
-            s2 = self._synthesize_wave([], 'triangle', 45, 220, vol * 0.3)
-            s2.play()
+            # Mehrere metallische Resonanzen
+            s1 = self._synthesize_wave('sine', 500, 250, vol * 0.25, vibrato=10)
+            s2 = self._synthesize_wave('sine', 750, 200, vol * 0.2, vibrato=12)
+            s3 = self._synthesize_wave('sine', 1000, 180, vol * 0.15, vibrato=8)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 5:
+            # Gedämpftes Metall
+            s1 = self._synthesize_wave('triangle', 180, 150, vol * 0.3)
+            s2 = self._synthesize_noise(100, vol * 0.25, lowpass=600, noise_type='pink')
+            s1.play(); s2.play()
+            
+        elif var == 6:
+            # Scharfes Klirren
+            s1 = self._synthesize_wave('square_soft', 400, 80, vol * 0.35, harmonics=[(3, 0.2)])
+            s2 = self._synthesize_noise(60, vol * 0.3, lowpass=2500, noise_type='white')
+            s1.play(); s2.play()
+            
         else:
-            # Standard Explosion
-            sound = self._synthesize_noise(300, vol * 0.45, lowpass=140, noise_type='pink')
-            s2 = self._synthesize_wave([], 'triangle', 38, 200, vol * 0.3)
-            s2.play()
+            # Komplexer Metall-Sound
+            s1 = self._synthesize_wave('triangle', 220, 160, vol * 0.3, harmonics=[(2, 0.25), (4, 0.1)])
+            s2 = self._synthesize_noise(110, vol * 0.25, lowpass=1000, noise_type='white')
+            s3 = self._synthesize_wave('sine', 660, 140, vol * 0.2, vibrato=10)
+            s1.play(); s2.play(); s3.play()
 
-        sound.play()
+    def play_tank_explosion(self):
+        """Tiefe Panzer-Explosion mit mehreren Schichten"""
+        var = self._current_tank % self._tank_variations
+        self._current_tank += 1
+        vol = self._get_sfx_volume(0.4)
+
+        if var == 0:
+            # Klassische Explosion: Bass-Druck + Rauschen
+            s1 = self._synthesize_wave('triangle', 35, 350, vol * 0.5, harmonics=[(2, 0.2)])
+            s2 = self._synthesize_noise(300, vol * 0.4, lowpass=150, highpass=30, noise_type='brown')
+            s3 = self._synthesize_wave('sine', 60, 200, vol * 0.3)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 1:
+            # Mehrfach-Explosion
+            s1 = self._synthesize_noise(150, vol * 0.4, lowpass=200, noise_type='brown')
+            s2 = self._synthesize_wave('triangle', 40, 250, vol * 0.35)
+            s3 = self._synthesize_wave('sine', 55, 180, vol * 0.25)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 2:
+            # Wuchtige Explosion
+            s1 = self._synthesize_noise(400, vol * 0.35, lowpass=120, noise_type='brown')
+            s2 = self._synthesize_wave('triangle', 30, 300, vol * 0.4, harmonics=[(3, 0.15)])
+            s3 = self._synthesize_wave('sine', 45, 250, vol * 0.25)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 3:
+            # Kurze, scharfe Explosion
+            s1 = self._synthesize_noise(120, vol * 0.45, lowpass=300, noise_type='pink')
+            s2 = self._synthesize_wave('triangle', 50, 150, vol * 0.35)
+            s1.play(); s2.play()
+            
+        elif var == 4:
+            # Tiefe, bedrohliche Explosion
+            s1 = self._synthesize_wave('triangle', 25, 400, vol * 0.45, harmonics=[(2, 0.25)])
+            s2 = self._synthesize_noise(350, vol * 0.35, lowpass=100, noise_type='brown')
+            s3 = self._synthesize_wave('sine', 40, 300, vol * 0.3)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 5:
+            # Feuerwerk-Explosion
+            s1 = self._synthesize_noise(200, vol * 0.4, lowpass=250, noise_type='white')
+            s2 = self._synthesize_wave('triangle', 45, 200, vol * 0.3)
+            s3 = self._synthesize_wave('sine', 70, 150, vol * 0.2)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 6:
+            # Zerfetzende Explosion
+            s1 = self._synthesize_noise(280, vol * 0.35, lowpass=180, noise_type='brown')
+            s2 = self._synthesize_wave('triangle', 38, 280, vol * 0.35, harmonics=[(2.5, 0.2)])
+            s1.play(); s2.play()
+            
+        elif var == 7:
+            # Knallhart
+            s1 = self._synthesize_noise(100, vol * 0.5, lowpass=400, noise_type='white')
+            s2 = self._synthesize_wave('triangle', 55, 180, vol * 0.3)
+            s3 = self._synthesize_wave('sine', 80, 120, vol * 0.2)
+            s1.play(); s2.play(); s3.play()
+            
+        elif var == 8:
+            # Langsame, imposante Explosion
+            s1 = self._synthesize_noise(450, vol * 0.3, lowpass=80, noise_type='brown')
+            s2 = self._synthesize_wave('triangle', 28, 350, vol * 0.4, harmonics=[(2, 0.2)])
+            s3 = self._synthesize_wave('sine', 35, 300, vol * 0.25)
+            s1.play(); s2.play(); s3.play()
+            
+        else:
+            # Standard-Explosion (Mix)
+            s1 = self._synthesize_noise(300, vol * 0.35, lowpass=140, noise_type='brown')
+            s2 = self._synthesize_wave('triangle', 38, 250, vol * 0.35, harmonics=[(2, 0.2)])
+            s3 = self._synthesize_wave('sine', 50, 200, vol * 0.25)
+            s1.play(); s2.play(); s3.play()
+
         self._duck_music(0.06)
 
     def play_bullet_hit(self):
-        """Kleiner, gedämpfter Einschlag"""
+        """Kleiner Einschlag-Sound"""
         vol = self._get_sfx_volume(0.15)
-        sound = self._synthesize_noise(40, vol * 0.5, lowpass=1000)
-        sound.play()
+        s1 = self._synthesize_wave('triangle', 300, 30, vol * 0.3, harmonics=[(2, 0.2)])
+        s2 = self._synthesize_noise(25, vol * 0.25, lowpass=2000, noise_type='white')
+        s1.play(); s2.play()
 
     def play_powerup(self):
-        """Sanfte Powerup-Melodie"""
-        vol = self._get_sfx_volume(0.15)
-        notes = [523, 659, 784, 1046]  # C5, E5, G5, C6
-        for i, freq in enumerate(notes):
-            s = self._synthesize_wave([], 'triangle', freq, 100, vol * 0.5)
-            pygame.time.wait(i * 80)
+        """Freudige Powerup-Melodie mit mehreren Stimmen"""
+        vol = self._get_sfx_volume(0.2)
+        
+        # Aufsteigende Arpeggio-Melodie
+        notes = [
+            (523, 0, 100),    # C5
+            (659, 100, 100),  # E5
+            (784, 200, 100),  # G5
+            (1046, 300, 150), # C6
+            (1318, 450, 200), # E6
+        ]
+        
+        for freq, delay, dur in notes:
+            pygame.time.wait(delay if delay == 0 else delay - (notes[0][2] if delay == 0 else 0))
+        
+        # Korrekte Timing-Implementierung
+        for i, (freq, delay, dur) in enumerate(notes):
+            if i > 0:
+                pygame.time.wait(notes[i-1][2])
+            s = self._synthesize_wave('sine', freq, dur, vol * 0.4, harmonics=[(2, 0.15)], tremolo=0.1)
             s.play()
+        
+        # Nachklingen
+        pygame.time.wait(100)
+        s = self._synthesize_wave('sine', 1318, 300, vol * 0.3, fade_out=0.2)
+        s.play()
 
     def play_music(self):
-        """Atmosphärische Hintergrundmusik (leise, nicht aufdringlich)"""
+        """Atmosphärische Hintergrundmusik mit mehreren Schichten"""
         if self._music_playing:
             return
         self._music_playing = True
 
-        # Sanfte Melodie (C-Dur Pentatonik, langsamer)
-        melody = [
-            523, 0, 659, 0, 784, 0, 659, 0,
-            523, 0, 659, 0, 523, 0, 392, 0,
-            392, 0, 440, 0, 392, 0, 330, 0,
-            330, 0, 392, 0, 440, 0, 392, 0,
+        # Verbesserte Melodie mit mehr Harmonik
+        # C-Dur Pentatonik mit Variationen
+        melody_patterns = [
+            # Pattern 1: Aufsteigend
+            [523, 587, 659, 0, 784, 659, 587, 523],
+            # Pattern 2: Absteigend
+            [523, 440, 392, 0, 440, 523, 587, 523],
+            # Pattern 3: Sprung hoch
+            [392, 523, 659, 784, 659, 523, 440, 392],
+            # Pattern 4: Auflösung
+            [523, 659, 784, 1046, 784, 659, 523, 392],
         ]
-        bass_line = [
-            262, 0, 0, 0, 262, 0, 0, 0,
-            330, 0, 0, 0, 262, 0, 0, 0,
-            392, 0, 0, 0, 330, 0, 0, 0,
-            262, 0, 0, 0, 262, 0, 0, 0,
+        
+        bass_patterns = [
+            [262, 0, 262, 0, 330, 0, 262, 0],
+            [262, 0, 330, 0, 392, 0, 330, 0],
+            [392, 0, 392, 0, 330, 0, 262, 0],
+            [262, 0, 330, 0, 392, 0, 523, 0],
         ]
-        arp_notes = [
-            262, 330, 392, 0,
-            330, 392, 523, 0,
-            392, 440, 494, 0,
-            330, 392, 523, 0,
+        
+        arp_patterns = [
+            [262, 330, 392, 523, 392, 330, 262, 0],
+            [262, 392, 523, 392, 330, 262, 330, 0],
+            [392, 523, 659, 523, 392, 330, 262, 0],
+            [262, 330, 392, 523, 659, 523, 392, 262],
         ]
 
-        note_len = 150  # ms pro Achtelnote (langsamer)
+        note_len = 120  # ms pro Note
 
-        def play_chiptune_note(freq: float, duration: float, vol: float, wave: str):
+        def play_note(freq, duration, volume, wave='triangle', harmonics=None):
             if freq <= 0:
                 return
             try:
-                s = self._synthesize_wave([], wave, freq, duration, vol)
+                s = self._synthesize_wave(wave, freq, duration, volume,
+                                         harmonics=harmonics or [(2, 0.1)])
                 s.play()
             except:
                 pass
 
         def music_loop():
             try:
+                pattern_idx = 0
                 while self._music_playing:
-                    for i in range(0, len(melody), 4):
+                    pattern = melody_patterns[pattern_idx % len(melody_patterns)]
+                    bass = bass_patterns[pattern_idx % len(bass_patterns)]
+                    arp = arp_patterns[pattern_idx % len(arp_patterns)]
+                    
+                    for i in range(0, len(pattern), 2):
                         if not self._music_playing:
                             break
 
-                        # Melodie (sehr leise, triangle)
-                        for j in range(4):
+                        # Melodie (warm, triangle mit Overtones)
+                        for j in range(2):
                             idx = i + j
-                            if idx < len(melody):
-                                play_chiptune_note(melody[idx], note_len,
-                                                   self._music_volume * 0.12, 'triangle')
+                            if idx < len(pattern):
+                                play_note(pattern[idx], note_len,
+                                         self._music_volume * 0.1, 'triangle',
+                                         [(2, 0.15), (3, 0.05)])
 
-                        # Bass (sehr leise, triangle)
-                        for j in range(4):
+                        # Bass (tief, sine)
+                        for j in range(2):
                             idx = i + j
-                            if idx < len(bass_line):
-                                play_chiptune_note(bass_line[idx], note_len,
-                                                   self._music_volume * 0.15, 'triangle')
+                            if idx < len(bass):
+                                play_note(bass[idx], note_len * 2,
+                                         self._music_volume * 0.12, 'sine')
 
-                        # Arpeggio (extrem leise, triangle)
-                        for j in range(4):
+                        # Arpeggio (hell, sine mit Vibrato)
+                        for j in range(2):
                             idx = i + j
-                            if idx < len(arp_notes):
-                                play_chiptune_note(arp_notes[idx], note_len // 2,
-                                                   self._music_volume * 0.06, 'triangle')
+                            if idx < len(arp):
+                                play_note(arp[idx], note_len // 2,
+                                         self._music_volume * 0.05, 'sine',
+                                         [(2, 0.1)])
 
-                        pygame.time.wait(note_len * 4)
+                        pygame.time.wait(note_len)
+                    
+                    pattern_idx += 1
             except:
                 pass
 
@@ -742,38 +1060,80 @@ class SoundManager:
         self._music_thread.start()
 
     def stop_music(self):
-        """Stoppt die Hintergrundmusik"""
+        """Stoppt die Hintergrundmusik sanft"""
         self._music_playing = False
         if self._music_thread and self._music_thread.is_alive():
             self._music_thread.join(timeout=1)
 
     def play_win(self):
-        """Sanfte Triumph-Melodie"""
-        vol = self._get_sfx_volume(0.2)
-        melody = [523, 659, 784, 1046, 784, 1046, 880]
-        durations = [150, 150, 150, 250, 150, 150, 400]
-
-        for i, (freq, dur) in enumerate(zip(melody, durations)):
-            s = self._synthesize_wave([], 'triangle', freq, dur, vol * 0.5)
-            pygame.time.wait(dur)
+        """Triumph-Melodie - aufsteigend und feierlich"""
+        vol = self._get_sfx_volume(0.25)
+        # C-Dur Akkord-Arpeggio aufsteigend
+        notes = [
+            (523, 0, 120),
+            (659, 120, 120),
+            (784, 240, 120),
+            (1046, 360, 200),
+            (1318, 560, 200),
+            (1568, 760, 300),
+            (2093, 1060, 500),
+        ]
+        
+        for i, (freq, delay, dur) in enumerate(notes):
+            if i > 0:
+                pygame.time.wait(notes[i-1][2])
+            s = self._synthesize_wave('sine', freq, dur, vol * 0.4,
+                                     harmonics=[(2, 0.2)], tremolo=0.05)
+            s.play()
+        
+        # Abschluss-Akkord
+        pygame.time.wait(200)
+        for freq in [523, 659, 784, 1046]:
+            s = self._synthesize_wave('sine', freq, 600, vol * 0.2, fade_out=0.4)
             s.play()
 
     def play_lose(self):
-        """Sanfte, traurige Melodie"""
-        vol = self._get_sfx_volume(0.15)
-        melody = [392, 349, 330, 294, 262, 220, 196]
-        durations = [250, 250, 250, 300, 300, 350, 500]
-
-        for i, (freq, dur) in enumerate(zip(melody, durations)):
-            s = self._synthesize_wave([], 'triangle', freq, dur, vol * 0.4)
-            pygame.time.wait(dur)
+        """Traurige Melodie - absteigend und langsam"""
+        vol = self._get_sfx_volume(0.18)
+        notes = [
+            (392, 0, 300),
+            (349, 300, 300),
+            (330, 600, 350),
+            (294, 950, 400),
+            (262, 1350, 450),
+            (220, 1800, 500),
+            (196, 2300, 700),
+        ]
+        
+        for i, (freq, delay, dur) in enumerate(notes):
+            if i > 0:
+                pygame.time.wait(notes[i-1][2])
+            s = self._synthesize_wave('triangle', freq, dur, vol * 0.35,
+                                     harmonics=[(2, 0.1)], tremolo=0.08)
             s.play()
+
+    def play_enemy_spawn(self):
+        """Feindliches Aufploppen-Signal"""
+        vol = self._get_sfx_volume(0.15)
+        s1 = self._synthesize_wave('square_soft', 150, 100, vol * 0.3)
+        s2 = self._synthesize_wave('square_soft', 120, 120, vol * 0.25)
+        s1.play()
+        pygame.time.wait(80)
+        s2.play()
+
+    def play_eagle_alert(self):
+        """Eagle-Unterwegs-Warnung"""
+        vol = self._get_sfx_volume(0.2)
+        for i in range(3):
+            s = self._synthesize_wave('square_soft', 440, 80, vol * 0.3)
+            s.play()
+            pygame.time.wait(150)
 
     def _duck_music(self, volume: float):
         """Duckt die Musik bei Sound-Effekten"""
         if self._duck_timer == 0:
             self._music_volume = volume
-            self._duck_timer = int(0.4 * 60)  # 0.4 Sekunden
+            self._duck_timer = int(0.4 * 60)
 
     def _update_music_ducking(self):
         """Reduziert Ducking über die Zeit"""
@@ -781,7 +1141,6 @@ class SoundManager:
             self._duck_timer -= 1
             if self._duck_timer <= 0:
                 self._music_volume = Config.MUSIC_VOLUME
-
 # ============================================================================
 # PLAYER CLASS
 # ============================================================================
@@ -1001,7 +1360,7 @@ class EnemyAI:
             return
 
         # Wenn Eagle getroffen wurde, fliehen
-        if self.enemy.game.eagle and self.enemy.game.eagle.state == EagleState.HIT:
+        if self.enemy.game is not None and self.enemy.game.eagle and self.enemy.game.eagle.state == EagleState.HIT:
             self.state = EnemyState.RETREAT
             return
 
@@ -1371,92 +1730,336 @@ class WaveManager:
             self.level += 1
 
 # ============================================================================
-# MAP GENERATOR mit verbessertem Design
+# MAP GENERATOR - Professionelle Labyrinth-Algorithmen
 # ============================================================================
+class MapTheme:
+    """Farbthema für Karten"""
+    def __init__(self, name, background, ground_color, wall_colors, accent_color):
+        self.name = name
+        self.background = background
+        self.ground_color = ground_color
+        self.wall_colors = wall_colors
+        self.accent_color = accent_color
+
 class MapGenerator:
-    def __init__(self, map_type="classic"):
+    """Professioneller Karten-Generator mit mehreren Algorithmen
+    
+    Unterstützt:
+    - Recursive Backtracking (Labyrinth)
+    - Cellular Automata (Höhlen)
+    - Drunkard's Walk (Organisch)
+    - Symmetrische Maps (Klassisch)
+    """
+    
+    # Vordefinierte Themes
+    THEMES = {
+        "classic": MapTheme("Classic", (25, 25, 35), (45, 40, 55),
+                           [(139, 69, 19), (160, 100, 60), (169, 169, 169)],
+                           (255, 215, 0)),
+        "industrial": MapTheme("Industrial", (20, 25, 30), (35, 40, 45),
+                               [(80, 85, 90), (100, 105, 110), (120, 125, 130)],
+                               (0, 200, 255)),
+        "desert": MapTheme("Desert", (45, 38, 25), (70, 60, 40),
+                          [(180, 150, 80), (160, 130, 70), (200, 180, 120)],
+                          (255, 200, 100)),
+        "arena": MapTheme("Arena", (15, 20, 35), (30, 35, 50),
+                         [(100, 70, 120), (130, 90, 150), (80, 60, 100)],
+                         (200, 150, 255)),
+    }
+
+    def __init__(self, map_type="classic", seed=None):
         self.map_type = map_type
+        self.seed = seed
+        if seed is not None:
+            random.seed(seed)
+        self.theme = self.THEMES.get(map_type, self.THEMES["classic"])
         self.map_config = Config.MAPS.get(map_type, Config.MAPS["classic"])
-        self.themes = {
-            "classic": {"background": (20, 20, 30), "wall_colors": [(139, 69, 19), (169, 169, 169)]},
-            "industrial": {"background": (30, 30, 40), "wall_colors": [(80, 80, 80), (120, 120, 120)]},
-            "desert": {"background": (50, 40, 20), "wall_colors": [(180, 150, 80), (200, 180, 120)]}
-        }
 
     def generate(self):
-        """Generiert ein Labyrinth mit Brotbox Algorithmus"""
+        """Generiert eine Karte basierend auf Map-Typ"""
+        if self.map_type == "classic":
+            return self._generate_symmetric()
+        elif self.map_type == "industrial":
+            return self._generate_cellular_automata(steel_heavy=True)
+        elif self.map_type == "desert":
+            return self._generate_recursive_backtracking(brick_heavy=True)
+        elif self.map_type == "arena":
+            return self._generate_open_arena()
+        else:
+            return self._generate_recursive_backtracking()
+
+    def _generate_recursive_backtracking(self, brick_heavy=False):
+        """Labyrinth-Generator mit Recursive Backtracking
+        
+        Erzeugt ein vollständiges Labyrinth mit mehreren Lösungswegen.
+        """
         walls = []
-        grid_width = Config.WIDTH // Config.GRID_SIZE
-        grid_height = Config.HEIGHT // Config.GRID_SIZE
+        grid_w = Config.WIDTH // Config.GRID_SIZE
+        grid_h = Config.HEIGHT // Config.GRID_SIZE
 
-        # Initialize grid: 0 = path, 1 = wall
-        grid = [[1 for _ in range(grid_width)] for _ in range(grid_height)]
+        # Grid initialisieren (1 = Wand, 0 = Weg)
+        grid = [[1] * grid_w for _ in range(grid_h)]
 
-        # Start point (internal cell)
-        start_x, start_y = 1, 1
-        grid[start_y][start_x] = 0
+        # Mehrere Startpunkte für offenere Maps
+        start_positions = [(1, 1), (grid_w - 2, 1), (1, grid_h - 2), (grid_w - 2, grid_h - 2)]
+        
+        for sx, sy in start_positions:
+            if 0 < sx < grid_w - 1 and 0 < sy < grid_h - 1:
+                grid[sy][sx] = 0
+                self._carve_labyrinth(grid, sx, sy, grid_w, grid_h)
 
-        stack = [(start_x, start_y)]
+        # Zusätzliche Öffnungen für bessere Spielbarkeit
+        self._add_openings(grid, num_openings=int(grid_w * grid_h * 0.02))
+
+        # In Walls konvertieren
+        for y in range(grid_h):
+            for x in range(grid_w):
+                if grid[y][x] == 1:
+                    wall_type = self._determine_wall_type(x, y, grid_w, grid_h, brick_heavy)
+                    walls.append(Wall(x * Config.GRID_SIZE, y * Config.GRID_SIZE,
+                                    Config.GRID_SIZE, Config.GRID_SIZE, wall_type))
+
+        return walls
+
+    def _carve_labyrinth(self, grid, cx, cy, grid_w, grid_h):
+        """Rekursives Backtracking zum Generieren des Labyrinths"""
+        grid[cy][cx] = 0
+        stack = [(cx, cy)]
 
         while stack:
-            cx, cy = stack[-1]
+            x, y = stack[-1]
             neighbors = []
 
-            # Check neighbors (2 steps away)
-            directions = [(0, -2), (0, 2), (-2, 0), (2, 0)]
-            random.shuffle(directions)
-
-            for dx, dy in directions:
-                nx, ny = cx + dx, cy + dy
-                if 1 <= nx < grid_width - 1 and 1 <= ny < grid_height - 1 and grid[ny][nx] == 1:
-                    neighbors.append((nx, ny, cx + dx//2, cy + dy//2))
+            for dx, dy in [(0, -2), (0, 2), (-2, 0), (2, 0)]:
+                nx, ny = x + dx, y + dy
+                if (0 < nx < grid_w - 1 and 0 < ny < grid_h - 1 and
+                    grid[ny][nx] == 1):
+                    neighbors.append((nx, ny, x + dx // 2, y + dy // 2))
 
             if neighbors:
-                nx, ny, wall_x, wall_y = random.choice(neighbors)
-
-                # Carve path
+                random.shuffle(neighbors)
+                nx, ny, wx, wy = neighbors[0]
                 grid[ny][nx] = 0
-                grid[wall_y][wall_x] = 0
-
+                grid[wy][wx] = 0
                 stack.append((nx, ny))
             else:
                 stack.pop()
 
-        # Convert grid to Wall objects
-        for y in range(grid_height):
-            for x in range(grid_width):
-                if grid[y][x] == 1:
-                    wall_x = x * Config.GRID_SIZE
-                    wall_y = y * Config.GRID_SIZE
+    def _add_openings(self, grid, num_openings=20):
+        """Fügt zusätzliche Öffnungen hinzu für bessere Spielbarkeit"""
+        grid_h = len(grid)
+        grid_w = len(grid[0])
+        
+        for _ in range(num_openings):
+            x = random.randint(1, grid_w - 2)
+            y = random.randint(1, grid_h - 2)
+            # Zähle benachbarte Wege
+            path_neighbors = 0
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                if grid[y + dy][x + dx] == 0:
+                    path_neighbors += 1
+            if path_neighbors >= 2:
+                grid[y][x] = 0
 
-                    # Determine wall type based on map type
-                    wall_type = self._determine_wall_type(x, y, grid_width, grid_height)
-                    walls.append(Wall(wall_x, wall_y, Config.GRID_SIZE, Config.GRID_SIZE, wall_type))
+    def _generate_symmetric(self):
+        """Symmetrische Karte für fairen Mehrspieler-Spaß
+        
+        Erzeugt eine horizontal symmetrische Karte mit klassischen Elementen.
+        """
+        walls = []
+        grid_w = Config.WIDTH // Config.GRID_SIZE
+        grid_h = Config.HEIGHT // Config.GRID_SIZE
+        half_w = grid_w // 2
+
+        # Linke Hälfte generieren
+        left_grid = [[1] * half_w for _ in range(grid_h)]
+        left_grid[1][1] = 0
+        self._carve_labyrinth(left_grid, 1, 1, half_w, grid_h)
+
+        # Rechte Hälfte spiegeln
+        full_grid = [[0] * grid_w for _ in range(grid_h)]
+        for y in range(grid_h):
+            for x in range(half_w):
+                mirror_x = grid_w - 1 - x
+                full_grid[y][x] = left_grid[y][x]
+                full_grid[y][mirror_x] = left_grid[y][x]
+        
+        # Mitte etwas öffnen
+        for y in range(grid_h // 3, 2 * grid_h // 3):
+            for x in range(half_w - 2, half_w + 2):
+                if 0 <= x < grid_w:
+                    full_grid[y][x] = 0
+
+        # In Walls konvertieren
+        for y in range(grid_h):
+            for x in range(grid_w):
+                if full_grid[y][x] == 1:
+                    wall_type = self._determine_wall_type(x, y, grid_w, grid_h)
+                    walls.append(Wall(x * Config.GRID_SIZE, y * Config.GRID_SIZE,
+                                    Config.GRID_SIZE, Config.GRID_SIZE, wall_type))
 
         return walls
 
-    def _determine_wall_type(self, x, y, grid_width, grid_height):
-        """Bestimmt Wall-Typ basierend auf Map-Konfiguration"""
-        # Outer walls are always steel
-        if x == 0 or x == grid_width - 1 or y == 0 or y == grid_height - 1:
+    def _generate_cellular_automata(self, steel_heavy=False):
+        """Höhlen-Generator mit Cellular Automata
+        
+        Erzeugt organische Höhlen-Strukturen.
+        """
+        grid_w = Config.WIDTH // Config.GRID_SIZE
+        grid_h = Config.HEIGHT // Config.GRID_SIZE
+
+        # Initial zufälliges Grid
+        grid = [[1] * grid_w for _ in range(grid_h)]
+        for y in range(grid_h):
+            for x in range(grid_w):
+                grid[y][x] = 0 if random.random() < 0.45 else 1
+
+        # Cellular Automata Iterationen
+        for _ in range(5):
+            new_grid = [row[:] for row in grid]
+            for y in range(1, grid_h - 1):
+                for x in range(1, grid_w - 1):
+                    wall_count = 0
+                    for dy in range(-1, 2):
+                        for dx in range(-1, 2):
+                            if grid[y + dy][x + dx] == 1:
+                                wall_count += 1
+                    if wall_count >= 5:
+                        new_grid[y][x] = 1
+                    elif wall_count <= 3:
+                        new_grid[y][x] = 0
+            grid = new_grid
+
+        # Außenwände sicherstellen
+        for x in range(grid_w):
+            grid[0][x] = 1
+            grid[grid_h - 1][x] = 1
+        for y in range(grid_h):
+            grid[y][0] = 1
+            grid[y][grid_w - 1] = 1
+
+        # Große offene Bereiche entfernen
+        self._remove_large_areas(grid, max_area=200)
+
+        # In Walls konvertieren
+        walls = []
+        for y in range(grid_h):
+            for x in range(grid_w):
+                if grid[y][x] == 1:
+                    wall_type = self._determine_wall_type(x, y, grid_w, grid_h,
+                                                         steel_heavy=steel_heavy)
+                    walls.append(Wall(x * Config.GRID_SIZE, y * Config.GRID_SIZE,
+                                    Config.GRID_SIZE, Config.GRID_SIZE, wall_type))
+
+        return walls
+
+    def _remove_large_areas(self, grid, max_area=100):
+        """Entfernt Wände um große offene Bereiche zu verkleinern"""
+        grid_h = len(grid)
+        grid_w = len(grid[0])
+        visited = [[False] * grid_w for _ in range(grid_h)]
+
+        for y in range(1, grid_h - 1):
+            for x in range(1, grid_w - 1):
+                if grid[y][x] == 0 and not visited[y][x]:
+                    area = self._flood_fill(grid, visited, x, y, set())
+                    if len(area) > max_area:
+                        # Wände in der Mitte des Bereichs hinzufügen
+                        cx = sum(p[0] for p in area) // len(area)
+                        cy = sum(p[1] for p in area) // len(area)
+                        grid[cy][cx] = 1
+
+    def _flood_fill(self, grid, visited, x, y, visited_set):
+        """Flood Fill um offene Bereiche zu zählen"""
+        grid_h = len(grid)
+        grid_w = len(grid[0])
+        stack = [(x, y)]
+        area = set()
+        
+        while stack:
+            cx, cy = stack.pop()
+            if (cx, cy) in visited_set or not (0 <= cx < grid_w and 0 <= cy < grid_h):
+                continue
+            if grid[cy][cx] == 1:
+                continue
+            
+            visited_set.add((cx, cy))
+            area.add((cx, cy))
+            
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                stack.append((cx + dx, cy + dy))
+        
+        return area
+
+    def _generate_open_arena(self):
+        """Offene Arena mit wenigen Deckungen
+        
+        Ideal für schnelle Matches.
+        """
+        walls = []
+        grid_w = Config.WIDTH // Config.GRID_SIZE
+        grid_h = Config.HEIGHT // Config.GRID_SIZE
+
+        # Alles als Weg initialisieren
+        grid = [[0] * grid_w for _ in range(grid_h)]
+
+        # Außenwände
+        for x in range(grid_w):
+            grid[0][x] = 1
+            grid[grid_h - 1][x] = 1
+        for y in range(grid_h):
+            grid[y][0] = 1
+            grid[y][grid_w - 1] = 1
+
+        # Einige Deckungs-Strukturen
+        structure_count = random.randint(8, 15)
+        for _ in range(structure_count):
+            sx = random.randint(2, grid_w - 4)
+            sy = random.randint(2, grid_h - 4)
+            size = random.randint(2, 4)
+            for dy in range(size):
+                for dx in range(size):
+                    if 0 < sy + dy < grid_h - 1 and 0 < sx + dx < grid_w - 1:
+                        grid[sy + dy][sx + dx] = 1
+
+        # Spawn-Bereiche frei halten
+        spawn_zones = [(2, 2), (grid_w - 4, 2), (2, grid_h - 4), (grid_w - 4, grid_h - 4)]
+        for sx, sy in spawn_zones:
+            for dy in range(3):
+                for dx in range(3):
+                    if 0 < sy + dy < grid_h - 1 and 0 < sx + dx < grid_w - 1:
+                        grid[sy + dy][sx + dx] = 0
+
+        # In Walls konvertieren
+        for y in range(grid_h):
+            for x in range(grid_w):
+                if grid[y][x] == 1:
+                    walls.append(Wall(x * Config.GRID_SIZE, y * Config.GRID_SIZE,
+                                    Config.GRID_SIZE, Config.GRID_SIZE, WallType.STEEL))
+
+        return walls
+
+    def _determine_wall_type(self, x, y, grid_w, grid_h, brick_heavy=False, steel_heavy=False):
+        """Bestimmt den Wand-Typ mit verbessertem Algorithmus"""
+        # Außenwände sind immer Stahl
+        if x == 0 or x == grid_w - 1 or y == 0 or y == grid_h - 1:
             return WallType.STEEL
 
-        # Based on map type
-        if self.map_type == "industrial":
-            # 40% steel, 60% brick
-            if random.random() < self.map_config.get("steel_ratio", 0.4):
-                return WallType.STEEL
-            return WallType.BRICK
+        # Steel-Ratio basierend auf Map-Typ
+        if steel_heavy:
+            steel_ratio = 0.5
+        elif brick_heavy:
+            steel_ratio = 0.3
+        elif self.map_type == "industrial":
+            steel_ratio = self.map_config.get("steel_ratio", 0.5)
         elif self.map_type == "desert":
-            # 60% brick, 40% steel
-            if random.random() < self.map_config.get("brick_ratio", 0.6):
-                return WallType.BRICK
-            return WallType.STEEL
+            steel_ratio = 1 - self.map_config.get("brick_ratio", 0.7)
         else:
-            # Classic: 50/50 mix
-            if random.random() < 0.5:
-                return WallType.BRICK
-            return WallType.STEEL
+            steel_ratio = 0.4
+
+        # Deterministisch basierend auf Position
+        seed = (x * 7 + y * 13 + hash(self.map_type)) % 100
+        return WallType.STEEL if seed < steel_ratio * 100 else WallType.BRICK
 
 # ============================================================================
 # GAME MANAGER mit verbessertem UI
@@ -1464,7 +2067,7 @@ class MapGenerator:
 class GameManager:
     def __init__(self):
         pygame.init()
-        pygame.mixer.init(frequency=Config.SOUND_SAMPLE_RATE, size=-16, channels=Config.MAX_SOUNDS, buffer=4096)
+        # mixer wird jetzt von SoundManager initialisiert
         self.screen = pygame.display.set_mode((Config.WIDTH, Config.HEIGHT))
         pygame.display.set_caption("PyTank - Tank Battle")
         self.clock = pygame.time.Clock()
@@ -2044,85 +2647,130 @@ class GameManager:
         return rendered.get_height()
 
     def _draw_main_menu(self):
-        """Verbessertes Hauptmenü mit professionellem Design"""
+        """Modernes Hauptmenü mit animiertem Hintergrund und professionellem Design"""
         tick = pygame.time.get_ticks() / 1000
 
-        # Dunkler, animierter Hintergrund mit Gradient
-        for i in range(Config.HEIGHT // 4):
-            r = int(15 + 10 * math.sin(tick * 0.3 + i / 100))
-            g = int(15 + 15 * math.cos(tick * 0.2 + i / 80))
-            b = int(30 + 20 * math.sin(tick * 0.4 + i / 120))
+        # Animierter Gradient-Hintergrund
+        for i in range(Config.HEIGHT // 2):
+            r = int(12 + 15 * math.sin(tick * 0.25 + i / 120))
+            g = int(14 + 18 * math.cos(tick * 0.2 + i / 100))
+            b = int(28 + 25 * math.sin(tick * 0.35 + i / 80))
             r, g, b = max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))
-            pygame.draw.line(self.screen, (r, g, b), (0, i * 4), (Config.WIDTH, i * 4))
+            pygame.draw.line(self.screen, (r, g, b), (0, i * 2), (Config.WIDTH, i * 2))
+
+        # Partikel-Effekt im Hintergrund
+        for i in range(50):
+            px = (int(tick * 20 * (i % 3 + 1)) + i * 137) % Config.WIDTH
+            py = (int(tick * 15 * ((i + 1) % 3 + 1)) + i * 89) % Config.HEIGHT
+            alpha = int(40 + 30 * math.sin(tick + i))
+            particle_color = (min(255, alpha), min(255, alpha), min(255, alpha + 80), alpha)
+            pygame.draw.circle(self.screen, particle_color, (px, py), 2)
 
         # Overlay für bessere Lesbarkeit
         overlay = pygame.Surface((Config.WIDTH, Config.HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 40))
+        overlay.fill((0, 0, 0, 50))
         self.screen.blit(overlay, (0, 0))
 
-        # Logo-Box mit Rahmen
-        box_width = 600
-        box_height = 500
+        # Haupt-Box mit Glow-Effekt
+        box_width = 650
+        box_height = 480
         box_x = Config.WIDTH//2 - box_width//2
-        box_y = Config.HEIGHT//2 - box_height//2 - 50
+        box_y = Config.HEIGHT//2 - box_height//2 - 40
 
-        # Box-Hintergrund
-        pygame.draw.rect(self.screen, (25, 25, 40), (box_x - 10, box_y - 10, box_width + 20, box_height + 20), border_radius=10)
-        pygame.draw.rect(self.screen, (100, 100, 180), (box_x - 10, box_y - 10, box_width + 20, box_height + 20), 3, border_radius=10)
+        # Äußerer Glow
+        for glow in range(3):
+            glow_alpha = int(30 - glow * 8)
+            pygame.draw.rect(self.screen, (80, 80, 160, glow_alpha),
+                           (box_x - 15 - glow * 5, box_y - 15 - glow * 5,
+                            box_width + 30 + glow * 10, box_height + 30 + glow * 10),
+                           border_radius=15)
+
+        # Box-Hintergrund mit Gradient
+        pygame.draw.rect(self.screen, (22, 22, 38), (box_x, box_y, box_width, box_height), border_radius=12)
+        pygame.draw.rect(self.screen, (100, 100, 180), (box_x, box_y, box_width, box_height), 3, border_radius=12)
 
         # Titel mit Glow-Effekt
-        title_y = box_y + 50
-        font = pygame.font.SysFont(None, 100, bold=True)
-        title = font.render("PYTANK", True, (255, 215, 0))
-        title_shadow = font.render("PYTANK", True, (100, 80, 0))
-        self.screen.blit(title_shadow, (Config.WIDTH//2 - title.get_width()//2 + 4, title_y + 4))
+        title_y = box_y + 45
+        title_font = pygame.font.SysFont(None, 110, bold=True)
+        
+        # Titel-Schatten
+        title_shadow = title_font.render("PYTANK", True, (80, 60, 0))
+        self.screen.blit(title_shadow, (Config.WIDTH//2 - title_shadow.get_width()//2 + 5, title_y + 5))
+        
+        # Titel mit Farbverlauf-Effekt
+        title = title_font.render("PYTANK", True, (255, 220, 30))
         self.screen.blit(title, (Config.WIDTH//2 - title.get_width()//2, title_y))
+        
+        # Titel-Glow
+        glow_font = pygame.font.SysFont(None, 110, bold=True)
+        glow_surf = glow_font.render("PYTANK", True, (255, 200, 0))
+        glow_surf.set_alpha(60)
+        self.screen.blit(glow_surf, (Config.WIDTH//2 - glow_surf.get_width()//2 - 2, title_y - 2))
 
         # Untertitel
-        self._draw_centered_text("TANK BATTLE ARENA", title_y + 80, font_size=40, bold=True, color=(180, 180, 220))
+        sub_font = pygame.font.SysFont(None, 38, bold=True)
+        sub_text = sub_font.render("TANK BATTLE ARENA", True, (170, 170, 220))
+        self.screen.blit(sub_text, (Config.WIDTH//2 - sub_text.get_width()//2, title_y + 75))
 
-        # Trennlinie
-        pygame.draw.line(self.screen, (100, 100, 180),
-                        (box_x + 50, title_y + 110), (box_x + box_width - 50, title_y + 110), 2)
+        # Dekorative Linie
+        line_y = title_y + 105
+        pygame.draw.line(self.screen, (80, 80, 160),
+                        (box_x + 40, line_y), (box_x + box_width - 40, line_y), 2)
 
-        # Menü-Buttons
-        button_font = pygame.font.SysFont(None, 32, bold=True)
+        # Menü-Buttons mit verbessertem Design
+        button_font = pygame.font.SysFont(None, 30, bold=True)
         buttons = [
-            ("1 - FFA Mode", (0, 255, 0), "1"),
-            ("2 - Horde Mode", (255, 165, 0), "2"),
-            ("3 - Co-op Mode", (0, 200, 255), "3"),
+            ("FFA Mode - 2 Spieler vs KI", (0, 255, 70), "1", "Free For All"),
+            ("Horde Mode - Wellen überleben", (255, 165, 0), "2", "Wave Survival"),
+            ("Co-op Mode - Gemeinsam spielen", (0, 200, 255), "3", "Cooperative"),
         ]
 
-        btn_y = box_y + 180
-        btn_width = 380
-        btn_height = 50
+        btn_y = box_y + 140
+        btn_width = 520
+        btn_height = 58
 
-        for i, (text, color, key) in enumerate(buttons):
+        for i, (text, color, key, desc) in enumerate(buttons):
             btn_x = Config.WIDTH//2 - btn_width//2
 
-            # Button-Hintergrund mit Hover-Effekt
-            pulse = int(30 * math.sin(tick * 2 + i))
-            hover_color = tuple(min(255, max(0, c + pulse)) for c in color)
+            # Button-Hintergrund
+            btn_bg = (25, 25, 45)
+            pygame.draw.rect(self.screen, btn_bg, (btn_x, btn_y + i * 72, btn_width, btn_height), border_radius=10)
 
-            pygame.draw.rect(self.screen, (20, 20, 35), (btn_x, btn_y + i * 70, btn_width, btn_height), border_radius=8)
-            pygame.draw.rect(self.screen, hover_color, (btn_x, btn_y + i * 70, btn_width, btn_height), 2, border_radius=8)
+            # Hover-Effekt mit Puls
+            pulse = int(25 * math.sin(tick * 2.5 + i * 1.5))
+            border_color = tuple(min(255, max(0, c + pulse)) for c in color)
+            pygame.draw.rect(self.screen, border_color, (btn_x, btn_y + i * 72, btn_width, btn_height), 3, border_radius=10)
 
-            # Key-Hint
-            key_font = pygame.font.SysFont(None, 28)
-            key_rendered = key_font.render(f"[{key}]", True, color)
-            self.screen.blit(key_rendered, (btn_x + 15, btn_y + i * 70 + 11))
+            # Key-Hint Box
+            key_box_width = 40
+            pygame.draw.rect(self.screen, (*color, 40),
+                           (btn_x + 8, btn_y + i * 72 + 9, key_box_width, btn_height - 18),
+                           border_radius=6)
+            pygame.draw.rect(self.screen, color,
+                           (btn_x + 8, btn_y + i * 72 + 9, key_box_width, btn_height - 18),
+                           2, border_radius=6)
+            
+            key_font = pygame.font.SysFont(None, 24, bold=True)
+            key_rendered = key_font.render(key, True, color)
+            self.screen.blit(key_rendered, (btn_x + 8 + (key_box_width - key_rendered.get_width())//2,
+                                          btn_y + i * 72 + 17))
 
             # Button-Text
             text_rendered = button_font.render(text, True, (255, 255, 255))
-            self.screen.blit(text_rendered, (btn_x + 60, btn_y + i * 70 + 11))
+            self.screen.blit(text_rendered, (btn_x + 60, btn_y + i * 72 + 14))
+
+            # Beschreibung
+            desc_font = pygame.font.SysFont(None, 20)
+            desc_rendered = desc_font.render(desc, True, (160, 160, 190))
+            self.screen.blit(desc_rendered, (btn_x + 60, btn_y + i * 72 + 40))
 
         # SPACE für Main Menu (wenn von Pause)
-        self._draw_centered_text("[SPACE] Main Menu", btn_y + 70 * 3 + 30, font_size=28, color=(200, 200, 200))
+        self._draw_centered_text("[SPACE] Main Menu", btn_y + 72 * 3 + 25, font_size=26, color=(200, 200, 220))
 
         # Footer
-        footer_y = box_y + box_height + 40
-        footer_font = pygame.font.SysFont(None, 22)
-        footer = footer_font.render("Press F for Fullscreen", True, (120, 120, 160))
+        footer_y = box_y + box_height + 35
+        footer_font = pygame.font.SysFont(None, 20)
+        footer = footer_font.render("Press F for Fullscreen  |  v1.0 Enhanced", True, (100, 100, 140))
         self.screen.blit(footer, (Config.WIDTH//2 - footer.get_width()//2, footer_y))
 
     def _draw_level_select(self):
