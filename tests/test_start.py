@@ -2,6 +2,12 @@ import sys
 import traceback
 import os
 
+# Füge das Projekt-Wurzelverzeichnis zum Python-Pfad hinzu
+# Dies ist notwendig damit pytank importiert werden kann, besonders in CI-Umgebungen
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 try:
     print("1. pygame importieren...")
     import pygame
