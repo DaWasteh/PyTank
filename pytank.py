@@ -442,10 +442,13 @@ class SoundManager:
         freq = frequency or Config.SOUND_SAMPLE_RATE
         chans = channels or Config.MAX_SOUNDS
         buf = buffer or 4096
+        self._sound_available = False
         try:
             pygame.mixer.init(frequency=freq, size=-16, channels=chans, buffer=buf)
+            self._sound_available = True
         except pygame.error:
-            pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+            # Audio device not available (e.g., in headless CI environments)
+            self._sound_available = False
         
         self._music_playing = False
         self._music_thread = None
@@ -691,6 +694,8 @@ class SoundManager:
 
     def play_shoot(self):
         """Hochwertiger Schuss-Sound mit mehreren Schichten"""
+        if not self._sound_available:
+            return
         var = self._current_shoot % self._shoot_variations
         self._current_shoot += 1
         vol = self._get_sfx_volume(0.25)
@@ -748,6 +753,8 @@ class SoundManager:
 
     def play_brick_destroy(self):
         """Zerstörung einer Ziegelwand - realistisches Zerbröckeln"""
+        if not self._sound_available:
+            return
         var = self._current_brick % self._brick_variations
         self._current_brick += 1
         vol = self._get_sfx_volume(0.3)
@@ -802,6 +809,8 @@ class SoundManager:
 
     def play_steel_destroy(self):
         """Zerstörung einer Stahlwand - metallisches Klirren"""
+        if not self._sound_available:
+            return
         var = self._current_steel % self._steel_variations
         self._current_steel += 1
         vol = self._get_sfx_volume(0.35)
@@ -859,6 +868,8 @@ class SoundManager:
 
     def play_tank_explosion(self):
         """Tiefe Panzer-Explosion mit mehreren Schichten"""
+        if not self._sound_available:
+            return
         var = self._current_tank % self._tank_variations
         self._current_tank += 1
         vol = self._get_sfx_volume(0.4)
@@ -935,6 +946,8 @@ class SoundManager:
 
     def play_bullet_hit(self):
         """Kleiner Einschlag-Sound"""
+        if not self._sound_available:
+            return
         vol = self._get_sfx_volume(0.15)
         s1 = self._synthesize_wave('triangle', 300, 30, vol * 0.3, harmonics=[(2, 0.2)])
         s2 = self._synthesize_noise(25, vol * 0.25, lowpass=2000, noise_type='white')
@@ -942,6 +955,8 @@ class SoundManager:
 
     def play_powerup(self):
         """Freudige Powerup-Melodie mit mehreren Stimmen"""
+        if not self._sound_available:
+            return
         vol = self._get_sfx_volume(0.2)
         
         # Aufsteigende Arpeggio-Melodie
@@ -970,7 +985,7 @@ class SoundManager:
 
     def play_music(self):
         """Atmosphärische Hintergrundmusik mit mehreren Schichten"""
-        if self._music_playing:
+        if not self._sound_available or self._music_playing:
             return
         self._music_playing = True
 
@@ -1065,6 +1080,8 @@ class SoundManager:
 
     def play_win(self):
         """Triumph-Melodie - aufsteigend und feierlich"""
+        if not self._sound_available:
+            return
         vol = self._get_sfx_volume(0.25)
         # C-Dur Akkord-Arpeggio aufsteigend
         notes = [
@@ -1092,6 +1109,8 @@ class SoundManager:
 
     def play_lose(self):
         """Traurige Melodie - absteigend und langsam"""
+        if not self._sound_available:
+            return
         vol = self._get_sfx_volume(0.18)
         notes = [
             (392, 0, 300),
@@ -1112,6 +1131,8 @@ class SoundManager:
 
     def play_enemy_spawn(self):
         """Feindliches Aufploppen-Signal"""
+        if not self._sound_available:
+            return
         vol = self._get_sfx_volume(0.15)
         s1 = self._synthesize_wave('square_soft', 150, 100, vol * 0.3)
         s2 = self._synthesize_wave('square_soft', 120, 120, vol * 0.25)
@@ -1121,6 +1142,8 @@ class SoundManager:
 
     def play_eagle_alert(self):
         """Eagle-Unterwegs-Warnung"""
+        if not self._sound_available:
+            return
         vol = self._get_sfx_volume(0.2)
         for i in range(3):
             s = self._synthesize_wave('square_soft', 440, 80, vol * 0.3)
