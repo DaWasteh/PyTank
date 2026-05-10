@@ -1,6 +1,7 @@
 import sys
 import traceback
 import os
+import signal
 
 # Füge das Projekt-Wurzelverzeichnis zum Python-Pfad hinzu
 # Dies ist notwendig damit pytank importiert werden kann, besonders in CI-Umgebungen
@@ -43,8 +44,18 @@ try:
     game = GameManager()
     print("   OK")
     
-    print("8. game.run() starten...")
-    game.run()
+    print("8. Kurze Initialisierungsschleife (5 Frames)...")
+    # Nicht die unendliche game.run() verwenden — stattdessen nur wenige Frames
+    # um sicherzustellen dass Initialisierung, Update und Draw ohne Fehler funktionieren
+    for i in range(5):
+        game.handle_events()
+        game.update()
+        game.draw()
+        game.clock.tick(Config.FPS)
+    print("   OK")
+    
+    print("9. pygame.quit()...")
+    pygame.quit()
     print("   OK")
     
     print("Alle Tests erfolgreich!")
