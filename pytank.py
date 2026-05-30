@@ -3095,7 +3095,7 @@ class GameManager:
             # Hauptmenü Button-Bereiche
             box_width = 650
             box_height = 480
-            box_x = Config.WIDTH//2 - box_width//2
+            Config.WIDTH//2 - box_width//2
             box_y = Config.HEIGHT//2 - box_height//2 - 40
             
             btn_width = 520
@@ -3120,7 +3120,7 @@ class GameManager:
             # Level-Auswahl Button-Bereiche
             box_width = 700
             box_height = 550
-            box_x = Config.WIDTH//2 - box_width//2
+            Config.WIDTH//2 - box_width//2
             box_y = Config.HEIGHT//2 - box_height//2 - 30
             
             # Map Buttons
@@ -3129,7 +3129,6 @@ class GameManager:
             btn_x = Config.WIDTH//2 - btn_width//2
             
             # Map-Vorschau-Bereich (Berechnung von btn_y basierend auf Vorschau)
-            preview_h = 20 * 10 #- Wait, preview_h = 20 * 20 = 400
             preview_y = box_y + 100
             btn_y = preview_y + 400 + 30 # 20 * 20 = 400
             
@@ -3362,7 +3361,6 @@ class GameManager:
             is_selected = (self.selected_map == ["classic", "industrial", "desert"][i])
             
             pulse = int(25 * math.sin(tick * 2 + i * 0.5))
-            base_color = color if is_selected else (100, 100, 120)
             
             # Button-Hintergrund
             bg_color = (30, 30, 50) if is_hovered else (20, 20, 35)
@@ -3371,7 +3369,11 @@ class GameManager:
             # Button-Rahmen
             border_color = color if is_selected or is_hovered else (60, 60, 80)
             if is_selected:
-                border_color = tuple(min(255, max(0, c + pulse)) for c in color)
+                border_color = (
+                    min(255, max(0, color[0] + pulse)),
+                    min(255, max(0, color[1] + pulse)),
+                    min(255, max(0, color[2] + pulse))
+                )
                 
             pygame.draw.rect(self.screen, border_color, (btn_x, btn_y + i * 75, btn_width, btn_height), 2 if not is_selected else 3, border_radius=8)
 
@@ -3749,7 +3751,11 @@ class GameManager:
                 btn_x = Config.WIDTH//2 - btn_width//2
 
                 pulse = int(20 * math.sin(tick * 3 + i))
-                hover_color = tuple(min(255, max(0, c + pulse)) for c in color)
+                hover_color = (
+                    min(255, max(0, color[0] + pulse)),
+                    min(255, max(0, color[1] + pulse)),
+                    min(255, max(0, color[2] + pulse))
+                )
 
                 pygame.draw.rect(self.screen, (20, 20, 35),
                                (btn_x, btn_y + i * 60, btn_width, btn_height), border_radius=8)
