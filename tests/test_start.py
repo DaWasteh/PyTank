@@ -1,7 +1,6 @@
 import sys
 import traceback
 import os
-import signal
 
 # Füge das Projekt-Wurzelverzeichnis zum Python-Pfad hinzu
 # Dies ist notwendig damit pytank importiert werden kann, besonders in CI-Umgebungen
@@ -32,11 +31,9 @@ try:
     print("   OK")
     
     print("5. GameState importieren...")
-    from pytank import GameState
     print("   OK")
     
     print("6. GameMode importieren...")
-    from pytank import GameMode
     print("   OK")
     
     print("7. GameManager erstellen...")

@@ -24,6 +24,16 @@ class Config:
     COLOR_EAGLE = (255, 215, 0)
     COLOR_TEXT = (255, 255, 255)
     COLOR_PARTICLE = (255, 165, 0)
+    
+    # Erweiterte Farben für bessere Optik
+    COLOR_P1_GLOW = (255, 255, 100)
+    COLOR_P2_GLOW = (100, 255, 100)
+    COLOR_ENEMY_BRIGHT = (255, 80, 80)
+    COLOR_BRICK_LIGHT = (180, 100, 50)
+    COLOR_STEEL_HIGHLIGHT = (200, 200, 210)
+    COLOR_FIRE = [(255, 80, 0), (255, 160, 0), (255, 220, 0), (255, 255, 50), (255, 60, 0)]
+    COLOR_SMOKE = [(80, 80, 80), (100, 100, 100), (120, 120, 120), (60, 60, 60)]
+    COLOR_SPARK = [(255, 255, 200), (255, 200, 100), (255, 255, 255)]
 
     # Gameplay
     PLAYER_SPEED = 4
@@ -57,6 +67,18 @@ class Config:
     # Respawn Settings
     RESPAWN_COOLDOWN = 3  # Sekunden
 
+    # AI Settings
+    AI_REACTION_FRAMES = 15
+    AI_SHOOT_COOLDOWN_MIN = 40
+    AI_SHOOT_COOLDOWN_MAX = 90
+    AI_FLANK_CHANCE = 0.25
+    AI_USE_COVER = True
+    AI_COORDINATED_ATTACK = True
+    AI_PATROL_AGGRESSIVENESS = 0.4
+    AI_SHOOT_ACCURACY = 0.85
+    PARTICLE_COUNT_MULTIPLIER = 2
+    AMBIENT_VOLUME = 0.08
+
     # Enemy Types
     SCOUT_SPEED = 3
     SCOUT_HP = 1
@@ -80,7 +102,7 @@ class Config:
     SOUND_SAMPLE_RATE = 48000
     MUSIC_VOLUME = 0.25       # Standard Lautstärke Musik (0.0 - 1.0)
     SFX_VOLUME = 0.6          # Standard Lautstärke SFX (0.0 - 1.0)
-    MAX_SOUNDS = 32           # Mehr Kanäle für komplexe Sounds
+    MAX_SOUNDS = 48           # Mehr Kanäle für komplexe Sounds
     VOLUME_SLIDER_HEIGHT = 18 # Höhe der Lautstärkeregler
     VOLUME_SLIDER_WIDTH = 120 # Breite der Lautstärkeregler
 
@@ -115,26 +137,40 @@ class EnemyState:
 # BACKGROUND RENDERER
 # ============================================================================
 class BackgroundRenderer:
-    """Zeichnet Hintergrund mit Grid-Muster und subtiler Struktur"""
-    def __init__(self, grid_size=50):
+    """Zeichnet Hintergrund mit Grid-Muster, pulsierendem Glow und atmosphärischer Beleuchtung"""
+    def __init__(self, grid_size=50) -> None:
         self.grid_size = grid_size
         self.background = None
 
-    def draw(self, surface):
-        """Zeichnet den Hintergrund"""
-        # Dunkler Blau-Tint statt COLOR_BLACK
-        surface.fill((20, 20, 25))
-
-        # Subtiles Grid mit leichtem Glow-Effekt
+    def draw(self, surface) -> None:
+        """Zeichnet den verbesserten Hintergrund"""
+        tick = pygame.time.get_ticks() / 1000
+        
+        # Dunkler Hintergrund
+        surface.fill((18, 18, 24))
+        
+        # Pulsierendes Grid
+        grid_color_base = (45, 45, 55)
         for i in range(0, Config.HEIGHT, self.grid_size):
-            alpha = int(30 + 20 * math.sin(i / 100))
-            color = (40, 40, 50, alpha)
+            pulse = int(15 * math.sin(tick * 0.5 + i / 150))
+            alpha = 25 + pulse
+            color = (*grid_color_base, max(10, min(50, alpha)))
             pygame.draw.line(surface, color, (0, i), (Config.WIDTH, i), 1)
 
         for i in range(0, Config.WIDTH, self.grid_size):
-            alpha = int(30 + 20 * math.cos(i / 100))
-            color = (40, 40, 50, alpha)
+            pulse = int(15 * math.cos(tick * 0.5 + i / 150))
+            alpha = 25 + pulse
+            color = (*grid_color_base, max(10, min(50, alpha)))
             pygame.draw.line(surface, color, (i, 0), (i, Config.HEIGHT), 1)
+        
+        # Zentrale Beleuchtung (Eagle-Bereich)
+        eagle_x, eagle_y = Config.WIDTH // 2, Config.HEIGHT - 60
+        glow_radius = 200
+        glow_surf = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+        glow_alpha = int(15 + 5 * math.sin(tick * 0.8))
+        glow_color = (255, 215, 0, glow_alpha)
+        pygame.draw.circle(glow_surf, glow_color, (glow_radius, glow_radius), glow_radius)
+        surface.blit(glow_surf, (eagle_x - glow_radius, eagle_y - glow_radius))
 
 class EagleState:
     PROTECTED = "protected"
@@ -144,20 +180,20 @@ class EagleState:
 # BASE CLASSES
 # ============================================================================
 class GameObject:
-    def __init__(self, x, y, width, height, color):
+    def __init__(self, x, y, width, height, color) -> None:
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
 
-    def draw(self, surface):
+    def draw(self, surface) -> None:
         pygame.draw.rect(surface, self.color, self.rect)
 
 class Entity(GameObject):
-    def __init__(self, x, y, width, height, color):
+    def __init__(self, x, y, width, height, color) -> None:
         super().__init__(x, y, width, height, color)
         self.direction = pygame.Vector2(0, 0)
         self.velocity = pygame.Vector2(0, 0)
 
-    def move(self, dx, dy, walls, screen_shake=0):
+    def move(self, dx, dy, walls, screen_shake=0) -> None:
         # Apply screen shake
         shake_x = random.randint(-screen_shake, screen_shake)
         shake_y = random.randint(-screen_shake, screen_shake)
@@ -166,23 +202,31 @@ class Entity(GameObject):
         self.rect.x += dx + shake_x
         for wall in walls:
             if self.rect.colliderect(wall.rect):
-                if dx > 0: self.rect.right = wall.rect.left
-                elif dx < 0: self.rect.left = wall.rect.right
+                if dx > 0:
+                    self.rect.right = wall.rect.left
+                elif dx < 0:
+                    self.rect.left = wall.rect.right
 
         # Check screen boundary X
-        if self.rect.left < 0: self.rect.left = 0
-        if self.rect.right > Config.WIDTH: self.rect.right = Config.WIDTH
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > Config.WIDTH:
+            self.rect.right = Config.WIDTH
 
         # Try moving in Y
         self.rect.y += dy + shake_y
         for wall in walls:
             if self.rect.colliderect(wall.rect):
-                if dy > 0: self.rect.bottom = wall.rect.top
-                elif dy < 0: self.rect.top = wall.rect.bottom
+                if dy > 0:
+                    self.rect.bottom = wall.rect.top
+                elif dy < 0:
+                    self.rect.top = wall.rect.bottom
 
         # Check screen boundary Y
-        if self.rect.top < 0: self.rect.top = 0
-        if self.rect.bottom > Config.HEIGHT: self.rect.bottom = Config.HEIGHT
+        if self.rect.top < 0:
+            self.rect.top = 0
+        if self.rect.bottom > Config.HEIGHT:
+            self.rect.bottom = Config.HEIGHT
 
 # ============================================================================
 # GAME OBJECTS
@@ -195,7 +239,7 @@ class Wall(GameObject):
     _steel_texture = None
     TEXTURE_SIZE = 50  # Muss mit Config.GRID_SIZE übereinstimmen
 
-    def __init__(self, x, y, width, height, wall_type):
+    def __init__(self, x, y, width, height, wall_type) -> None:
         if wall_type == WallType.BRICK:
             color = Config.COLOR_BRICK
             destructible = True
@@ -211,72 +255,99 @@ class Wall(GameObject):
             Wall._init_textures()
 
     @classmethod
-    def _init_textures(cls):
-        """Initialisiert vorge-renderte Texturen für Wände (einmalig)"""
+    def _init_textures(cls) -> None:
+        """Initialisiert vorge-renderete Texturen mit 3D-Effekten (einmalig)"""
         size = cls.TEXTURE_SIZE
         
-        # Ziegel-Textur
+        # Ziegel-Textur mit besserem Design
         brick_tex = pygame.Surface((size, size), pygame.SRCALPHA)
         brick_tex.fill((*Config.COLOR_BRICK, 255))
         
-        # Ziegel-Fugen (statisch, kein random)
-        brick_color = (101, 67, 17)
-        # Vertikale Fugen
-        for i in range(0, size, 10):
+        # Größere Ziegel mit Fugen
+        brick_color = (100, 55, 15)
+        brick_light = (180, 100, 50)
+        for i in range(0, size, 12):
             pygame.draw.line(brick_tex, brick_color, (i, 0), (i, size), 1)
-        # Horizontale Fugen (versetzt)
-        for j in range(0, size, 10):
-            offset = 5 if j % 20 == 0 else 0
+        for j in range(0, size, 12):
+            offset = 6 if j % 24 == 0 else 0
             pygame.draw.line(brick_tex, brick_color, (offset, j), (size, j), 1)
         
-        # Leichtes Farb-Variation-Overlay
+        # 3D-Highlights für Ziegel
+        for j in range(0, size, 12):
+            offset = 6 if j % 24 == 0 else 0
+            pygame.draw.line(brick_tex, brick_light, (offset + 1, j), (offset + 1, j + 11), 1)
+            pygame.draw.line(brick_tex, brick_light, (offset, j + 1), (size, j + 1), 1)
+        
+        # Subtiles Wärme-Overlay
         overlay = pygame.Surface((size, size), pygame.SRCALPHA)
-        overlay.fill((180, 120, 60, 30))
+        overlay.fill((200, 130, 60, 25))
         brick_tex.blit(overlay, (0, 0))
         
         cls._brick_texture = brick_tex
 
-        # Stahl-Textur
+        # Stahl-Textur mit Metallic-Effekt und Nieten
         steel_tex = pygame.Surface((size, size), pygame.SRCALPHA)
         steel_tex.fill((*Config.COLOR_STEEL, 255))
         
-        # Stahl-Gitter
-        steel_color = (127, 127, 127)
-        for i in range(0, size, 15):
+        steel_color = (140, 140, 150)
+        for i in range(0, size, 12):
             pygame.draw.line(steel_tex, steel_color, (i, 0), (i, size), 1)
-        for j in range(0, size, 15):
+        for j in range(0, size, 12):
             pygame.draw.line(steel_tex, steel_color, (0, j), (size, j), 1)
         
-        # Metallic-Highlight
-        highlight = pygame.Surface((size, size), pygame.SRCALPHA)
-        highlight.fill((200, 200, 210, 25))
-        steel_tex.blit(highlight, (0, 0))
+        # Nieten an Kreuzungen
+        rivet_color = (170, 170, 180)
+        for i in range(0, size, 12):
+            for j in range(0, size, 12):
+                pygame.draw.circle(steel_tex, rivet_color, (i, j), 2)
+                pygame.draw.circle(steel_tex, (200, 200, 210), (i - 1, j - 1), 1)
+        
+        # Diagonale Metallic-Highlights
+        for i in range(0, size, 20):
+            pygame.draw.line(steel_tex, (200, 200, 210, 40), (i, 0), (min(i + 10, size), 10), 1)
+            pygame.draw.line(steel_tex, (200, 200, 210, 30), (0, i), (10, min(i + 10, size)), 1)
         
         cls._steel_texture = steel_tex
 
-    def draw(self, surface):
-        """Zeichnet Wand mit vorge-renderter Textur (performant)"""
+    def draw(self, surface) -> None:
+        """Zeichnet Wand mit vorge-renderter Textur und 3D-Effekt"""
         if self.wall_type == WallType.BRICK:
             tex = Wall._brick_texture
         else:
             tex = Wall._steel_texture
         
-        # Skaliere Textur falls Wand andere Größe hat
+        if tex is None:
+            return
+
         if self.rect.width != Wall.TEXTURE_SIZE or self.rect.height != Wall.TEXTURE_SIZE:
             scaled_tex = pygame.transform.scale(tex, (self.rect.width, self.rect.height))
             surface.blit(scaled_tex, self.rect.topleft)
         else:
             surface.blit(tex, self.rect.topleft)
         
-        # Außenrahmen
-        pygame.draw.rect(surface, (60, 60, 60), self.rect, 1)
+        # 3D-Schatten (unten und rechts)
+        pygame.draw.rect(surface, (50, 50, 50), 
+                        (self.rect.x, self.rect.y + self.rect.height - 2, 
+                         self.rect.width, 2))
+        pygame.draw.rect(surface, (50, 50, 50), 
+                        (self.rect.x + self.rect.width - 2, self.rect.y, 
+                         2, self.rect.height))
+        # 3D-Licht (oben und links)
+        pygame.draw.rect(surface, (100, 100, 100), 
+                        (self.rect.x, self.rect.y, 
+                         self.rect.width, 2))
+        pygame.draw.rect(surface, (100, 100, 100), 
+                        (self.rect.x, self.rect.y, 
+                         2, self.rect.height))
+        
+        pygame.draw.rect(surface, (55, 55, 65), self.rect, 1)
 
 class Bullet(GameObject):
-    def __init__(self, x, y, direction, color, owner, trail_length=10):
+    def __init__(self, x, y, direction, color, owner, trail_length=10) -> None:
         super().__init__(x, y, 8, 8, color)
         self.direction = direction
         self.owner = owner
-        self.trail = []
+        self.trail: list[tuple[int, int]] = []
         self.trail_length = trail_length
 
     def update(self, walls):
@@ -301,18 +372,31 @@ class Bullet(GameObject):
                 return "hit_wall"
         return None
 
-    def draw_with_trail(self, surface):
-        # Draw trail with improved effects
+    def draw_with_trail(self, surface) -> None:
+        cx, cy = self.rect.centerx, self.rect.centery
+        
+        # Trail
         for i, (tx, ty) in enumerate(self.trail):
-            alpha = int(255 * (i / self.trail_length) * 0.7)
+            alpha = int(255 * (i / self.trail_length) * 0.6)
             color = (*self.color[:3], alpha)
-            size = int(3 * (i / self.trail_length))
+            size = int(2 * (i / self.trail_length))
             pygame.draw.circle(surface, color, (tx, ty), max(1, size))
 
-        # Draw bullet with glow effect
-        pygame.draw.circle(surface, self.color, (self.rect.centerx, self.rect.centery), 4)
-        glow_color = (*self.color[:3], 100)
-        pygame.draw.circle(surface, glow_color, (self.rect.centerx, self.rect.centery), 6)
+        # Large outer glow
+        glow_surf = pygame.Surface((self.rect.width + 20, self.rect.height + 20), pygame.SRCALPHA)
+        glow_color = (*self.color[:3], 60)
+        pygame.draw.circle(glow_surf, glow_color, (10, 10), 10)
+        surface.blit(glow_surf, (cx - 10, cy - 10))
+        
+        # Inner glow
+        inner_glow = pygame.Surface((self.rect.width + 10, self.rect.height + 10), pygame.SRCALPHA)
+        inner_color = (*self.color[:3], 120)
+        pygame.draw.circle(inner_glow, inner_color, (5, 5), 5)
+        surface.blit(inner_glow, (cx - 5, cy - 5))
+
+        # Bright core
+        pygame.draw.circle(surface, (255, 255, 255), (cx, cy), 2)
+        pygame.draw.circle(surface, self.color, (cx, cy), 4)
 
 class Powerup(GameObject):
     """Powerup-Objekt mit verbessertem Design"""
@@ -320,10 +404,10 @@ class Powerup(GameObject):
     DOUBLE_SHOT = "double_shot"
     REPAIR = "repair"
 
-    def __init__(self, x, y, powerup_type):
+    def __init__(self, x, y, powerup_type) -> None:
         super().__init__(x, y, 20, 20, (255, 255, 0))
         self.powerup_type = powerup_type
-        self.pulse = 0
+        self.pulse = 0.0
         self.hitbox = pygame.Rect(x - 15, y - 15, 30, 30)
 
         # Typ-spezifische Farben und Symbole
@@ -337,16 +421,18 @@ class Powerup(GameObject):
             self.color = (255, 165, 0)  # Orange
             self.symbol = "❤️"
 
-    def update(self):
+    def update(self) -> None:
         """Update Powerup"""
         self.pulse += 0.1
 
-    def draw(self, surface):
+    def draw(self, surface) -> None:
         """Zeichnet Powerup mit verbessertem Puls-Effekt"""
-        pulse_size = 10 + int(self.pulse * 5)
+        # Verwende Sinus für pulsierende Größe, damit sie nicht unendlich wächst
+        pulse_val = math.sin(pygame.time.get_ticks() / 200)
+        pulse_size = 10 + int((pulse_val + 1) * 5)
 
         # Pulsierender Hintergrund mit Glow
-        alpha = int(100 + 100 * math.sin(pygame.time.get_ticks() / 200))
+        alpha = int(100 + 100 * pulse_val)
         color = (*self.color[:3], alpha)
         pygame.draw.circle(surface, color, (int(self.rect.centerx), int(self.rect.centery)), pulse_size)
 
@@ -362,63 +448,130 @@ class Powerup(GameObject):
                                     int(self.rect.centery) - symbol_surface.get_height()//2))
 
 class Eagle(GameObject):
-    def __init__(self, x, y):
+    def __init__(self, x, y) -> None:
         super().__init__(x, y, 20, 20, Config.COLOR_EAGLE)
         self.state = EagleState.PROTECTED
 
-    def draw_adler(self, surface):
+    def draw_adler(self, surface) -> None:
+        """Zeichnet den Adler mit atmosphärischem Glow und animiertem Schutzring"""
+        tick = pygame.time.get_ticks() / 1000
+        
         if self.state == EagleState.HIT:
-            # Zerstörtes Adler-Symbol (grau)
-            pygame.draw.rect(surface, (100, 100, 100), self.rect)
+            # Zerstörter Adler mit Rauch-X
+            pygame.draw.rect(surface, (80, 80, 80), self.rect)
+            pygame.draw.line(surface, (255, 50, 50), 
+                           (self.rect.left, self.rect.top), 
+                           (self.rect.right, self.rect.bottom), 2)
+            pygame.draw.line(surface, (255, 50, 50), 
+                           (self.rect.right, self.rect.top), 
+                           (self.rect.left, self.rect.bottom), 2)
             return
 
-        # 4-Flügel Adler-Symbol mit verbessertem Design
         cx, cy = self.rect.centerx, self.rect.centery
-        wing_size = 12
+        
+        # Atmosphärischer Glow
+        glow_surf = pygame.Surface((60, 60), pygame.SRCALPHA)
+        pulse = int(20 + 15 * math.sin(tick * 2))
+        glow_rgba = (255, 215, 0, pulse)
+        pygame.draw.circle(glow_surf, glow_rgba, (30, 30), 30)
+        surface.blit(glow_surf, (cx - 30, cy - 30))
+        
+        wing_size = 14
 
-        # Flügel mit Textur
-        pygame.draw.polygon(surface, Config.COLOR_EAGLE, [
+        # Flügel (dunkler Umriss)
+        pygame.draw.polygon(surface, (180, 150, 0), [
             (cx, cy), (cx - wing_size, cy - wing_size), (cx - wing_size * 2, cy),
             (cx - wing_size, cy + wing_size), (cx, cy + wing_size * 2),
             (cx + wing_size, cy + wing_size), (cx + wing_size * 2, cy),
             (cx + wing_size, cy - wing_size)
         ])
+        # Flügel (heller)
+        pygame.draw.polygon(surface, Config.COLOR_EAGLE, [
+            (cx, cy), (cx - wing_size + 2, cy - wing_size + 2), (cx - wing_size * 2 + 2, cy),
+            (cx - wing_size + 2, cy + wing_size - 2), (cx, cy + wing_size * 2 - 2),
+            (cx + wing_size - 2, cy + wing_size - 2), (cx + wing_size * 2 - 2, cy),
+            (cx + wing_size - 2, cy - wing_size + 2)
+        ])
 
-        # Körper mit Glow-Effekt
-        pygame.draw.circle(surface, Config.COLOR_EAGLE, (cx, cy), 8)
-        glow_color = (*Config.COLOR_EAGLE[:3], 150)
-        pygame.draw.circle(surface, glow_color, (cx, cy), 10, 1)
+        # Körper mit Glanzpunkt
+        pygame.draw.circle(surface, (200, 180, 0), (cx, cy), 8)
+        pygame.draw.circle(surface, Config.COLOR_EAGLE, (cx, cy), 7)
+        pygame.draw.circle(surface, (255, 255, 200), (cx - 2, cy - 2), 3)
 
-        # Schutzring mit Puls-Effekt
-        pulse = int(2 * math.sin(pygame.time.get_ticks() / 300))
-        pygame.draw.circle(surface, (255, 255, 200), (cx, cy), 10 + pulse, 1)
+        # Animierte Schutzringe
+        pulse = int(3 * math.sin(tick * 3))
+        ring_alpha = int(100 + 50 * math.sin(tick * 2))
+        pygame.draw.circle(surface, (255, 255, 200, ring_alpha), (cx, cy), 14 + pulse, 2)
+        pulse2 = int(2 * math.sin(tick * 1.5 + 1))
+        pygame.draw.circle(surface, (255, 215, 0, 60), (cx, cy), 18 + pulse2, 1)
 
 class Particle(GameObject):
-    """Partikel-Effekt für Explosionen mit verbessertem Design"""
-    def __init__(self, x, y, color, vx, vy, life):
-        super().__init__(x, y, 2, 2, color)
+    """Partikel-Effekt für Explosionen - Feuer, Rauch, Funken"""
+    def __init__(self, x, y, color, vx, vy, life, size=2, particle_type="normal") -> None:
+        super().__init__(x, y, size * 2, size * 2, color)
         self.vx = vx
         self.vy = vy
         self.life = life
         self.max_life = life
+        self.size = float(size)
+        self.particle_type = particle_type
+        self.rotation = random.uniform(0, 360)
+        self.rot_speed = random.uniform(-5, 5)
 
-    def update(self):
-        """Update Partikel"""
+    def update(self) -> None:
+        """Update Partikel mit physik-basierter Bewegung"""
         self.rect.x += self.vx
         self.rect.y += self.vy
         self.life -= 1
+        self.rotation += self.rot_speed
+        
+        if self.particle_type == "fire":
+            self.vy -= 0.1
+            self.vx *= 0.98
+        elif self.particle_type == "smoke":
+            self.vy -= 0.05
+            self.vx *= 0.99
+            self.size = max(1, self.size + 0.05)
+        elif self.particle_type == "spark":
+            self.vy += 0.15
+            self.vx *= 0.99
+        else:
+            self.vx *= 0.97
+            self.vy *= 0.97
 
-        if (self.rect.x < -10 or self.rect.x > Config.WIDTH + 10 or
-            self.rect.y < -10 or self.rect.y > Config.HEIGHT + 10):
+        if (self.rect.x < -20 or self.rect.x > Config.WIDTH + 20 or
+            self.rect.y < -20 or self.rect.y > Config.HEIGHT + 20):
             self.life = 0
 
-    def draw(self, surface):
-        """Zeichnet Partikel mit verbessertem Effekt"""
-        alpha = int(255 * (self.life / self.max_life))
-        color = (*self.color[:3], alpha)
-        size = int(2 * (self.life / self.max_life))
-
-        pygame.draw.circle(surface, color, (int(self.rect.centerx), int(self.rect.centery)), size)
+    def draw(self, surface) -> None:
+        """Zeichnet Partikel mit typ-spezifischem Effekt"""
+        life_ratio = self.life / self.max_life
+        alpha = int(255 * life_ratio)
+        
+        if self.particle_type == "fire":
+            size = int(self.size * (0.5 + life_ratio * 1.5))
+            glow_surf = pygame.Surface((size * 4, size * 4), pygame.SRCALPHA)
+            glow_color = (255, min(255, int(200 * life_ratio)), 0, int(80 * life_ratio))
+            pygame.draw.circle(glow_surf, glow_color, (size * 2, size * 2), size * 2)
+            surface.blit(glow_surf, (int(self.rect.x - size * 2), int(self.rect.y - size * 2)))
+            core_color = (255, min(255, int(150 + 105 * life_ratio)), int(50 * life_ratio), alpha)
+            pygame.draw.circle(surface, core_color, (int(self.rect.centerx), int(self.rect.centery)), max(1, size))
+        elif self.particle_type == "smoke":
+            size = int(self.size * (1 + (1 - life_ratio) * 2))
+            smoke_surf = pygame.Surface((size * 3, size * 3), pygame.SRCALPHA)
+            smoke_color = (60, 60, 60, int(60 * life_ratio))
+            pygame.draw.circle(smoke_surf, smoke_color, (size * 1.5, size * 1.5), size * 1.5)
+            surface.blit(smoke_surf, (int(self.rect.x - size * 1.5), int(self.rect.y - size * 1.5)))
+        elif self.particle_type == "spark":
+            size = max(1, int(self.size * life_ratio))
+            spark_color = (255, 255, min(255, int(200 + 55 * life_ratio)), alpha)
+            pygame.draw.circle(surface, spark_color, (int(self.rect.centerx), int(self.rect.centery)), size)
+            glow_color = (255, 255, 200, int(50 * life_ratio))
+            pygame.draw.circle(surface, glow_color, (int(self.rect.centerx), int(self.rect.centery)), size + 2)
+        else:
+            size = int(self.size * life_ratio)
+            color = (*self.color[:3], alpha)
+            pygame.draw.circle(surface, color, (int(self.rect.centerx), int(self.rect.centery)), max(1, size))
 
 # ============================================================================
 # SOUND MANAGER (Hochwertige synthetisierte Sounds)
@@ -437,7 +590,7 @@ class SoundManager:
     _sound_cache: dict = {}
     CACHE_MAX = 64
 
-    def __init__(self, frequency=None, channels=None, buffer=None):
+    def __init__(self, frequency=None, channels=None, buffer=None) -> None:
         # Verwende übergebene Werte oder Defaults
         freq = frequency or Config.SOUND_SAMPLE_RATE
         chans = channels or Config.MAX_SOUNDS
@@ -451,7 +604,7 @@ class SoundManager:
             self._sound_available = False
         
         self._music_playing = False
-        self._music_thread = None
+        self._music_thread: threading.Thread | None = None
         self._music_volume = Config.MUSIC_VOLUME
         self._sfx_volume = Config.SFX_VOLUME
         self._duck_timer = 0
@@ -467,12 +620,12 @@ class SoundManager:
         self._current_steel = 0
         self._current_tank = 0
 
-    def set_music_volume(self, volume: float):
+    def set_music_volume(self, volume: float) -> None:
         """Setzt die Musiklautstärke (0.0 = stumm, 1.0 = maximal)"""
         self._music_volume = max(0.0, min(1.0, volume))
         Config.MUSIC_VOLUME = self._music_volume
 
-    def set_sfx_volume(self, volume: float):
+    def set_sfx_volume(self, volume: float) -> None:
         """Setzt die SFX-Lautstärke (0.0 = stumm, 1.0 = maximal)"""
         self._sfx_volume = max(0.0, min(1.0, volume))
         Config.SFX_VOLUME = self._sfx_volume
@@ -615,7 +768,7 @@ class SoundManager:
         prev_noise = 0.0
         prev_filtered = 0.0
         cutoff_low = lowpass / sample_rate
-        cutoff_high = max(highpass / sample_rate, 0.01)
+        max(highpass / sample_rate, 0.01)
 
         output = bytearray(num_samples * 2)
 
@@ -676,23 +829,20 @@ class SoundManager:
 
         return pygame.mixer.Sound(bytes(output))
 
-    def _play_stereo(self, left_sound, right_sound, pan: float = 0.5):
+    def _play_stereo(self, left_sound, right_sound, pan: float = 0.5) -> None:
         """Spielt zwei Sounds mit Panning ab (links-rechts Positionierung)"""
         if pan < 0.3:
-            left_vol = 1.0
-            right_vol = pan / 0.3
+            pass
         elif pan > 0.7:
-            left_vol = (1.0 - pan) / 0.3
-            right_vol = 1.0
+            pass
         else:
-            left_vol = 0.7
-            right_vol = 0.7
+            pass
         
         # Einfach: linken Sound mit angepasster Lautstärke abspielen
         if left_sound:
             left_sound.play()
 
-    def play_shoot(self):
+    def play_shoot(self) -> None:
         """Hochwertiger Schuss-Sound mit mehreren Schichten"""
         if not self._sound_available:
             return
@@ -704,54 +854,63 @@ class SoundManager:
             # Klassischer Schuss: Knall + kurzer Ton
             s1 = self._synthesize_wave('square_soft', 180, 80, vol * 0.5, fade_out=0.05)
             s2 = self._synthesize_noise(40, vol * 0.4, lowpass=1500, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 1:
             # Tiefer Schuss: Bass-Druck + Knacken
             s1 = self._synthesize_wave('triangle', 120, 100, vol * 0.4, harmonics=[(2, 0.3)])
             s2 = self._synthesize_noise(50, vol * 0.35, lowpass=2000, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 2:
             # Schneller Schuss: hochfrequent, kurz
             s1 = self._synthesize_wave('sawtooth', 400, 45, vol * 0.35, harmonics=[(3, 0.2)])
             s2 = self._synthesize_noise(30, vol * 0.3, lowpass=3000, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 3:
             # Gedämpfter Schuss: weich, tief
             s1 = self._synthesize_wave('triangle', 150, 90, vol * 0.4, harmonics=[(1.5, 0.2)])
             s2 = self._synthesize_noise(60, vol * 0.3, lowpass=800, noise_type='pink')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 4:
             # Scharfer Schuss: hochfrequenter Knall
             s1 = self._synthesize_wave('square_soft', 250, 60, vol * 0.45, harmonics=[(2, 0.25), (4, 0.1)])
             s2 = self._synthesize_noise(35, vol * 0.4, lowpass=2500, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 5:
             # Schwerer Schuss: viel Bass
             s1 = self._synthesize_wave('triangle', 100, 120, vol * 0.45, harmonics=[(2, 0.3)])
             s2 = self._synthesize_noise(70, vol * 0.35, lowpass=1200, noise_type='brown')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 6:
             # Präzisionsschuss: klar, hoch
             s1 = self._synthesize_wave('sine', 500, 50, vol * 0.3, vibrato=5)
             s2 = self._synthesize_noise(40, vol * 0.35, lowpass=2000, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         else:
             # Standard-Mix
             s1 = self._synthesize_wave('square_soft', 200, 70, vol * 0.4, harmonics=[(2.5, 0.15)])
             s2 = self._synthesize_noise(55, vol * 0.35, lowpass=1800, noise_type='white')
             s3 = self._synthesize_wave('triangle', 80, 80, vol * 0.25)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
 
         self._duck_music(0.08)
 
-    def play_brick_destroy(self):
+    def play_brick_destroy(self) -> None:
         """Zerstörung einer Ziegelwand - realistisches Zerbröckeln"""
         if not self._sound_available:
             return
@@ -763,31 +922,36 @@ class SoundManager:
             # Staubiges Zerfallen
             s1 = self._synthesize_noise(150, vol * 0.4, lowpass=600, highpass=100, noise_type='pink')
             s2 = self._synthesize_wave('triangle', 120, 80, vol * 0.2)
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 1:
             # Knackiges Brechen
             s1 = self._synthesize_noise(80, vol * 0.5, lowpass=1500, noise_type='white')
             s2 = self._synthesize_wave('square_soft', 200, 60, vol * 0.25)
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 2:
             # Mehrfaches Zerbröckeln
             s1 = self._synthesize_noise(120, vol * 0.4, lowpass=800, noise_type='brown')
             s2 = self._synthesize_wave('triangle', 150, 100, vol * 0.2, harmonics=[(2, 0.2)])
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 3:
             # Hartes Aufprallen
             s1 = self._synthesize_wave('triangle', 250, 70, vol * 0.35, harmonics=[(3, 0.15)])
             s2 = self._synthesize_noise(90, vol * 0.35, lowpass=1000, noise_type='pink')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 4:
             # Langsames Verfallen
             s1 = self._synthesize_noise(200, vol * 0.35, lowpass=500, highpass=80, noise_type='brown')
             s2 = self._synthesize_wave('sine', 100, 120, vol * 0.2)
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 5:
             # Kurz und knackig
@@ -798,16 +962,19 @@ class SoundManager:
             # Staubwolke
             s1 = self._synthesize_noise(180, vol * 0.3, lowpass=400, noise_type='pink')
             s2 = self._synthesize_wave('triangle', 80, 90, vol * 0.2)
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         else:
             # Mix aus allem
             s1 = self._synthesize_noise(130, vol * 0.4, lowpass=700, noise_type='pink')
             s2 = self._synthesize_wave('square_soft', 180, 70, vol * 0.2)
             s3 = self._synthesize_noise(50, vol * 0.25, lowpass=1500, noise_type='white')
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
 
-    def play_steel_destroy(self):
+    def play_steel_destroy(self) -> None:
         """Zerstörung einer Stahlwand - metallisches Klirren"""
         if not self._sound_available:
             return
@@ -820,53 +987,64 @@ class SoundManager:
             s1 = self._synthesize_wave('sine', 800, 200, vol * 0.3, vibrato=15)
             s2 = self._synthesize_wave('sine', 1200, 150, vol * 0.2, vibrato=20)
             s3 = self._synthesize_noise(100, vol * 0.25, lowpass=2000, noise_type='white')
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 1:
             # Tiefes metallisches Surren
             s1 = self._synthesize_wave('triangle', 150, 180, vol * 0.35, harmonics=[(2, 0.3), (3, 0.15)])
             s2 = self._synthesize_noise(120, vol * 0.25, lowpass=800, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 2:
             # Kurzes metallisches Klicken
             s1 = self._synthesize_wave('square_soft', 600, 40, vol * 0.4)
             s2 = self._synthesize_noise(30, vol * 0.3, lowpass=3000, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 3:
             # Metallischer Einschlag
             s1 = self._synthesize_wave('triangle', 200, 120, vol * 0.35, harmonics=[(2.5, 0.2)])
             s2 = self._synthesize_noise(80, vol * 0.3, lowpass=1200, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 4:
             # Mehrere metallische Resonanzen
             s1 = self._synthesize_wave('sine', 500, 250, vol * 0.25, vibrato=10)
             s2 = self._synthesize_wave('sine', 750, 200, vol * 0.2, vibrato=12)
             s3 = self._synthesize_wave('sine', 1000, 180, vol * 0.15, vibrato=8)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 5:
             # Gedämpftes Metall
             s1 = self._synthesize_wave('triangle', 180, 150, vol * 0.3)
             s2 = self._synthesize_noise(100, vol * 0.25, lowpass=600, noise_type='pink')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 6:
             # Scharfes Klirren
             s1 = self._synthesize_wave('square_soft', 400, 80, vol * 0.35, harmonics=[(3, 0.2)])
             s2 = self._synthesize_noise(60, vol * 0.3, lowpass=2500, noise_type='white')
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         else:
             # Komplexer Metall-Sound
             s1 = self._synthesize_wave('triangle', 220, 160, vol * 0.3, harmonics=[(2, 0.25), (4, 0.1)])
             s2 = self._synthesize_noise(110, vol * 0.25, lowpass=1000, noise_type='white')
             s3 = self._synthesize_wave('sine', 660, 140, vol * 0.2, vibrato=10)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
 
-    def play_tank_explosion(self):
+    def play_tank_explosion(self) -> None:
         """Tiefe Panzer-Explosion mit mehreren Schichten"""
         if not self._sound_available:
             return
@@ -879,81 +1057,133 @@ class SoundManager:
             s1 = self._synthesize_wave('triangle', 35, 350, vol * 0.5, harmonics=[(2, 0.2)])
             s2 = self._synthesize_noise(300, vol * 0.4, lowpass=150, highpass=30, noise_type='brown')
             s3 = self._synthesize_wave('sine', 60, 200, vol * 0.3)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 1:
             # Mehrfach-Explosion
             s1 = self._synthesize_noise(150, vol * 0.4, lowpass=200, noise_type='brown')
             s2 = self._synthesize_wave('triangle', 40, 250, vol * 0.35)
             s3 = self._synthesize_wave('sine', 55, 180, vol * 0.25)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 2:
             # Wuchtige Explosion
             s1 = self._synthesize_noise(400, vol * 0.35, lowpass=120, noise_type='brown')
             s2 = self._synthesize_wave('triangle', 30, 300, vol * 0.4, harmonics=[(3, 0.15)])
             s3 = self._synthesize_wave('sine', 45, 250, vol * 0.25)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 3:
             # Kurze, scharfe Explosion
             s1 = self._synthesize_noise(120, vol * 0.45, lowpass=300, noise_type='pink')
             s2 = self._synthesize_wave('triangle', 50, 150, vol * 0.35)
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 4:
             # Tiefe, bedrohliche Explosion
             s1 = self._synthesize_wave('triangle', 25, 400, vol * 0.45, harmonics=[(2, 0.25)])
             s2 = self._synthesize_noise(350, vol * 0.35, lowpass=100, noise_type='brown')
             s3 = self._synthesize_wave('sine', 40, 300, vol * 0.3)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 5:
             # Feuerwerk-Explosion
             s1 = self._synthesize_noise(200, vol * 0.4, lowpass=250, noise_type='white')
             s2 = self._synthesize_wave('triangle', 45, 200, vol * 0.3)
             s3 = self._synthesize_wave('sine', 70, 150, vol * 0.2)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 6:
             # Zerfetzende Explosion
             s1 = self._synthesize_noise(280, vol * 0.35, lowpass=180, noise_type='brown')
             s2 = self._synthesize_wave('triangle', 38, 280, vol * 0.35, harmonics=[(2.5, 0.2)])
-            s1.play(); s2.play()
+            s1.play()
+            s2.play()
             
         elif var == 7:
             # Knallhart
             s1 = self._synthesize_noise(100, vol * 0.5, lowpass=400, noise_type='white')
             s2 = self._synthesize_wave('triangle', 55, 180, vol * 0.3)
             s3 = self._synthesize_wave('sine', 80, 120, vol * 0.2)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         elif var == 8:
             # Langsame, imposante Explosion
             s1 = self._synthesize_noise(450, vol * 0.3, lowpass=80, noise_type='brown')
             s2 = self._synthesize_wave('triangle', 28, 350, vol * 0.4, harmonics=[(2, 0.2)])
             s3 = self._synthesize_wave('sine', 35, 300, vol * 0.25)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
             
         else:
             # Standard-Explosion (Mix)
             s1 = self._synthesize_noise(300, vol * 0.35, lowpass=140, noise_type='brown')
             s2 = self._synthesize_wave('triangle', 38, 250, vol * 0.35, harmonics=[(2, 0.2)])
             s3 = self._synthesize_wave('sine', 50, 200, vol * 0.25)
-            s1.play(); s2.play(); s3.play()
+            s1.play()
+            s2.play()
+            s3.play()
 
         self._duck_music(0.06)
 
-    def play_bullet_hit(self):
+    def play_ambient(self) -> None:
+        """Atmosphärische Hintergrundgeräusche (Wind, distante Explosionen)"""
+        if not self._sound_available:
+            return
+        vol = Config.AMBIENT_VOLUME
+        wind = self._synthesize_noise(2000, vol * 0.5, lowpass=200, noise_type='brown', highpass=30)
+        wind.play()
+        if random.random() < 0.3:
+            distant = self._synthesize_noise(500, vol * 0.3, lowpass=80, noise_type='brown')
+            distant.play()
+
+    def play_impact_heavy(self) -> None:
+        """Schwerer Einschlag (Player-Treffer)"""
+        if not self._sound_available:
+            return
+        vol = self._get_sfx_volume(0.3)
+        s1 = self._synthesize_wave('triangle', 80, 100, vol * 0.4, harmonics=[(2, 0.3)])
+        s2 = self._synthesize_noise(80, vol * 0.35, lowpass=800, noise_type='white')
+        s3 = self._synthesize_wave('square_soft', 150, 60, vol * 0.2)
+        s1.play()
+        s2.play()
+        s3.play()
+
+    def play_impact_light(self) -> None:
+        """Leichter Einschlag (Bullet auf Panzer)"""
+        if not self._sound_available:
+            return
+        vol = self._get_sfx_volume(0.2)
+        s1 = self._synthesize_wave('triangle', 200, 40, vol * 0.3, harmonics=[(3, 0.2)])
+        s2 = self._synthesize_noise(30, vol * 0.25, lowpass=1500, noise_type='white')
+        s1.play()
+        s2.play()
+
+    def play_bullet_hit(self) -> None:
         """Kleiner Einschlag-Sound"""
         if not self._sound_available:
             return
         vol = self._get_sfx_volume(0.15)
         s1 = self._synthesize_wave('triangle', 300, 30, vol * 0.3, harmonics=[(2, 0.2)])
         s2 = self._synthesize_noise(25, vol * 0.25, lowpass=2000, noise_type='white')
-        s1.play(); s2.play()
+        s1.play()
+        s2.play()
 
-    def play_powerup(self):
+    def play_powerup(self) -> None:
         """Freudige Powerup-Melodie mit mehreren Stimmen"""
         if not self._sound_available:
             return
@@ -983,7 +1213,7 @@ class SoundManager:
         s = self._synthesize_wave('sine', 1318, 300, vol * 0.3, fade_out=0.2)
         s.play()
 
-    def play_music(self):
+    def play_music(self) -> None:
         """Atmosphärische Hintergrundmusik mit mehreren Schichten"""
         if not self._sound_available or self._music_playing:
             return
@@ -1018,17 +1248,17 @@ class SoundManager:
 
         note_len = 120  # ms pro Note
 
-        def play_note(freq, duration, volume, wave='triangle', harmonics=None):
+        def play_note(freq, duration, volume, wave='triangle', harmonics=None) -> None:
             if freq <= 0:
                 return
             try:
                 s = self._synthesize_wave(wave, freq, duration, volume,
                                          harmonics=harmonics or [(2, 0.1)])
                 s.play()
-            except:
+            except Exception:
                 pass
 
-        def music_loop():
+        def music_loop() -> None:
             try:
                 pattern_idx = 0
                 while self._music_playing:
@@ -1066,19 +1296,19 @@ class SoundManager:
                         pygame.time.wait(note_len)
                     
                     pattern_idx += 1
-            except:
+            except Exception:
                 pass
 
         self._music_thread = threading.Thread(target=music_loop, daemon=True)
         self._music_thread.start()
 
-    def stop_music(self):
+    def stop_music(self) -> None:
         """Stoppt die Hintergrundmusik sanft"""
         self._music_playing = False
         if self._music_thread and self._music_thread.is_alive():
             self._music_thread.join(timeout=1)
 
-    def play_win(self):
+    def play_win(self) -> None:
         """Triumph-Melodie - aufsteigend und feierlich"""
         if not self._sound_available:
             return
@@ -1107,7 +1337,7 @@ class SoundManager:
             s = self._synthesize_wave('sine', freq, 600, vol * 0.2, fade_out=0.4)
             s.play()
 
-    def play_lose(self):
+    def play_lose(self) -> None:
         """Traurige Melodie - absteigend und langsam"""
         if not self._sound_available:
             return
@@ -1129,7 +1359,7 @@ class SoundManager:
                                      harmonics=[(2, 0.1)], tremolo=0.08)
             s.play()
 
-    def play_enemy_spawn(self):
+    def play_enemy_spawn(self) -> None:
         """Feindliches Aufploppen-Signal"""
         if not self._sound_available:
             return
@@ -1140,7 +1370,7 @@ class SoundManager:
         pygame.time.wait(80)
         s2.play()
 
-    def play_eagle_alert(self):
+    def play_eagle_alert(self) -> None:
         """Eagle-Unterwegs-Warnung"""
         if not self._sound_available:
             return
@@ -1150,13 +1380,13 @@ class SoundManager:
             s.play()
             pygame.time.wait(150)
 
-    def _duck_music(self, volume: float):
+    def _duck_music(self, volume: float) -> None:
         """Duckt die Musik bei Sound-Effekten"""
         if self._duck_timer == 0:
             self._music_volume = volume
             self._duck_timer = int(0.4 * 60)
 
-    def _update_music_ducking(self):
+    def _update_music_ducking(self) -> None:
         """Reduziert Ducking über die Zeit"""
         if self._duck_timer > 0:
             self._duck_timer -= 1
@@ -1166,7 +1396,7 @@ class SoundManager:
 # PLAYER CLASS
 # ============================================================================
 class Player:
-    def __init__(self, player_id, x, y, color, controls):
+    def __init__(self, player_id, x, y, color, controls) -> None:
         self.player_id = player_id
         self.rect = pygame.Rect(x, y, Config.GRID_SIZE - 10, Config.GRID_SIZE - 10)
         self.color = color
@@ -1187,27 +1417,22 @@ class Player:
     def handle_input(self, keys):
         dx, dy = 0, 0
         if keys[self.controls['up']]:
-            dy = -Config.PLAYER_SPEED
-            self.last_direction = pygame.Vector2(0, -1)
-        elif keys[self.controls['down']]:
-            dy = Config.PLAYER_SPEED
-            self.last_direction = pygame.Vector2(0, 1)
-
+            dy -= 1
+        if keys[self.controls['down']]:
+            dy += 1
         if keys[self.controls['left']]:
-            dx = -Config.PLAYER_SPEED
-            self.last_direction = pygame.Vector2(-1, 0)
-        elif keys[self.controls['right']]:
-            dx = Config.PLAYER_SPEED
-            self.last_direction = pygame.Vector2(1, 0)
+            dx -= 1
+        if keys[self.controls['right']]:
+            dx += 1
 
-        # Diagonale Bewegung: Vektor normalisieren
         self.direction = pygame.Vector2(dx, dy)
         if self.direction.length() > 0:
             self.direction.normalize_ip()
+            self.last_direction = pygame.Vector2(self.direction.x, self.direction.y)
             angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
             self.rotation_angle = angle
 
-        return dx, dy
+        return self.direction * Config.PLAYER_SPEED
 
     def shoot(self):
         if self.shoot_cooldown > 0:
@@ -1228,62 +1453,110 @@ class Player:
             return bullets
         return Bullet(self.rect.centerx, self.rect.centery, direction, self.color, f"player{self.player_id}")
 
-    def draw_tank(self, surface):
-        """Zeichnet detaillierten Panzer mit Ketten, Turm und Kanone"""
+    def draw_tank(self, surface) -> None:
+        """Zeichnet detaillierten Panzer mit Glow, animierten Ketten und 3D-Effekten"""
         cx, cy = self.rect.centerx, self.rect.centery
         size = self.rect.width
         half = size // 2
+        tick = pygame.time.get_ticks() / 1000
+
+        # AMBIENT GLOW unter dem Panzer
+        glow_surf = pygame.Surface((size * 3, size * 3), pygame.SRCALPHA)
+        pulse = int(30 + 20 * math.sin(tick * 3))
+        glow_rgba = (*self.color[:3], pulse)
+        pygame.draw.circle(glow_surf, glow_rgba, (size * 1.5, size * 1.5), size * 1.5)
+        surface.blit(glow_surf, (cx - size * 1.5, cy - size * 1.5))
 
         # Schatten unter dem Panzer
-        pygame.draw.ellipse(surface, (0, 0, 0, 100),
-                          (cx - half - 2, cy + half - 5, size + 4, 10))
+        pygame.draw.ellipse(surface, (0, 0, 0, 120),
+                          (cx - half - 3, cy + half - 4, size + 6, 12))
 
-        # Ketten (links und rechts)
-        chain_color = (80, 80, 80)
-        chain_width = 4
+        # Ketten mit Animation und 3D-Effekt
+        chain_color = (70, 70, 70)
+        chain_dark = (50, 50, 50)
+        chain_width = 5
+        # Chain shadows
+        pygame.draw.rect(surface, (40, 40, 40),
+                        (cx - half - chain_width - 1, cy - half + 1, chain_width, size + 2))
+        pygame.draw.rect(surface, (40, 40, 40),
+                        (cx + half + 1, cy - half + 1, chain_width, size + 2))
+        # Main chains
         pygame.draw.rect(surface, chain_color,
                         (cx - half - chain_width, cy - half, chain_width, size))
         pygame.draw.rect(surface, chain_color,
                         (cx + half, cy - half, chain_width, size))
-
-        # Ketten-Detail (kleine Linien)
-        for i in range(-half, half, 4):
-            pygame.draw.line(surface, (60, 60, 60),
+        # Chain highlights
+        pygame.draw.rect(surface, (100, 100, 100),
+                        (cx - half - chain_width, cy - half, 1, size))
+        pygame.draw.rect(surface, (100, 100, 100),
+                        (cx + half, cy - half, 1, size))
+        # Animierte Tread-Markierungen
+        tread_offset = int(tick * 20) % 8
+        for i in range(-half + tread_offset, half, 8):
+            pygame.draw.line(surface, chain_dark,
                            (cx - half - chain_width, cy + i),
                            (cx - half, cy + i), 1)
-            pygame.draw.line(surface, (60, 60, 60),
+            pygame.draw.line(surface, chain_dark,
                            (cx + half, cy + i),
                            (cx + half + chain_width, cy + i), 1)
 
-        # Hauptkörper (T-Form)
-        body_color = (*self.color[:3], 255)
+        # Hauptkörper mit 3D-Effekt
+        pygame.draw.rect(surface, (40, 40, 40),
+                        (cx - half + 2, cy - half + 6, size, size - 6))
         pygame.draw.rect(surface, self.color,
                         (cx - half, cy - half + 4, size, size - 8))
-        pygame.draw.rect(surface, (100, 100, 100),
+        # Körper-Highlight (oben)
+        pygame.draw.line(surface, (255, 255, 255, 80),
+                        (cx - half + 2, cy - half + 5),
+                        (cx + half - 2, cy - half + 5), 1)
+        # Kontur
+        pygame.draw.rect(surface, (60, 60, 60),
                         (cx - half, cy - half + 4, size, size - 8), 1)
+        # Panzerplatten-Linie
+        pygame.draw.line(surface, (80, 80, 80),
+                        (cx - half + 4, cy),
+                        (cx + half - 4, cy), 1)
 
-        # Turm (Kreis in der Mitte)
-        turret_radius = half - 2
-        pygame.draw.circle(surface, (*self.color[:3], 200), (cx, cy), turret_radius)
-        pygame.draw.circle(surface, (100, 100, 100), (cx, cy), turret_radius, 1)
+        # Turm mit Schatten und Highlight
+        turret_radius = half - 3
+        pygame.draw.circle(surface, (40, 40, 40), (cx + 2, cy + 2), turret_radius)
+        pygame.draw.circle(surface, (*self.color[:3], 220), (cx, cy), turret_radius)
+        pygame.draw.circle(surface, (255, 255, 255, 40), (cx - 1, cy - 1), turret_radius - 2)
+        pygame.draw.circle(surface, (70, 70, 70), (cx, cy), turret_radius, 1)
+        # Turm-Mittelteil
+        pygame.draw.circle(surface, (*self.color[:3], 180), (cx, cy), 5)
+        pygame.draw.circle(surface, (255, 255, 255, 50), (cx, cy), 3)
 
-        # Kanone - gedreht in Fahrtrichtung
-        cannon_length = 20
-        cannon_width = 6
+        # Kanone mit Schatten, Highlight und Mündung
+        cannon_length = 22
+        cannon_width = 7
         cannon_end_x = cx + math.cos(math.radians(self.rotation_angle)) * cannon_length
         cannon_end_y = cy + math.sin(math.radians(self.rotation_angle)) * cannon_length
-        cannon_start_x = cx + math.cos(math.radians(self.rotation_angle)) * 4
-        cannon_start_y = cy + math.sin(math.radians(self.rotation_angle)) * 4
-
-        # Kanone zeichnen
-        pygame.draw.line(surface, (80, 80, 80),
+        cannon_start_x = cx + math.cos(math.radians(self.rotation_angle)) * 5
+        cannon_start_y = cy + math.sin(math.radians(self.rotation_angle)) * 5
+        # Kanonen-Schatten
+        pygame.draw.line(surface, (50, 50, 50),
+                        (cannon_start_x + 1, cannon_start_y + 2),
+                        (cannon_end_x + 1, cannon_end_y + 2), cannon_width + 1)
+        # Kanone
+        pygame.draw.line(surface, (90, 90, 90),
                         (cannon_start_x, cannon_start_y),
                         (cannon_end_x, cannon_end_y), cannon_width)
-        # Mündungsfeuer bei Schuss (optional)
-        pygame.draw.circle(surface, (255, 200, 100),
-                          (int(cannon_end_x), int(cannon_end_y)), 3)
+        # Kanonen-Highlight
+        highlight_end_x = cx + math.cos(math.radians(self.rotation_angle)) * (cannon_length - 2)
+        highlight_end_y = cy + math.sin(math.radians(self.rotation_angle)) * (cannon_length - 2)
+        highlight_start_x = cx + math.cos(math.radians(self.rotation_angle)) * 6
+        highlight_start_y = cy + math.sin(math.radians(self.rotation_angle)) * 6
+        pygame.draw.line(surface, (140, 140, 140),
+                        (highlight_start_x, highlight_start_y),
+                        (highlight_end_x, highlight_end_y), 2)
+        # Mündung
+        pygame.draw.circle(surface, (60, 60, 60),
+                          (int(cannon_end_x), int(cannon_end_y)), 4)
+        pygame.draw.circle(surface, (40, 40, 40),
+                          (int(cannon_end_x), int(cannon_end_y)), 2)
 
-    def take_damage(self, amount=1):
+    def take_damage(self, amount=1) -> bool:
         """Nimmt Schaden, wenn unverwundbar oder Shield aktiv, ignoriert Schaden"""
         if self.invulnerable:
             return False
@@ -1296,7 +1569,7 @@ class Player:
         self.health -= amount
         return True
 
-    def update(self, walls):
+    def update(self, walls) -> None:
         """Update Player"""
         # Respawn Timer
         if self.respawn_timer > 0:
@@ -1308,7 +1581,7 @@ class Player:
             if self.double_shot_timer == 0:
                 self.double_shot_active = False
 
-    def move(self, dx, dy, walls, shake):
+    def move(self, dx, dy, walls, shake) -> None:
         """Bewegt Spieler mit Kollisionserkennung"""
         # Neue Position berechnen
         new_x = self.rect.centerx + dx
@@ -1331,7 +1604,7 @@ class Player:
                 if dy != 0:
                     self.rect.centery -= dy
 
-    def draw_health_bar(self, surface):
+    def draw_health_bar(self, surface) -> None:
         """Zeichnet Health-Bar über dem Panzer"""
         cx, cy = self.rect.centerx, self.rect.centery - 10
         bar_width = 30
@@ -1346,7 +1619,7 @@ class Player:
         pygame.draw.rect(surface, color, (cx - bar_width//2, cy, bar_width * health_ratio, bar_height))
         pygame.draw.rect(surface, (100, 100, 100), (cx - bar_width//2, cy, bar_width, bar_height), 1)
 
-    def draw(self, surface):
+    def draw(self, surface) -> None:
         self.draw_tank(surface)
         self.draw_health_bar(surface)
 
@@ -1362,34 +1635,43 @@ class EnemyType:
 # ENEMY CLASS mit verbessierter KI
 # ============================================================================
 class EnemyAI:
-    def __init__(self, enemy):
+    def __init__(self, enemy) -> None:
         self.enemy = enemy
         self.state = EnemyState.PATROL
         self.target = None
-        self.patrol_points = []
+        self.patrol_points: list[tuple[int, int]] = []
         self.current_patrol_index = 0
 
-    def update(self, players, walls, eagle_pos):
+    def update(self, players, walls, eagle_pos) -> None:
         """Aktualisiert die KI basierend auf Zustand"""
         self._update_state(players, eagle_pos)
         self._execute_state(players, walls)
 
-    def _update_state(self, players, eagle_pos):
-        """Bestimmt den aktuellen Zustand"""
+    def _update_state(self, players, eagle_pos) -> None:
+        """Bestimmt den aktuellen Zustand mit Prioritäten"""
         if not players:
             self.state = EnemyState.PATROL
             return
 
-        # Wenn Eagle getroffen wurde, fliehen
+        # Priorität 1: Flucht wenn Eagle zerstört
         if self.enemy.game is not None and self.enemy.game.eagle and self.enemy.game.eagle.state == EagleState.HIT:
             self.state = EnemyState.RETREAT
             return
 
-        # Wenn Spieler in der Nähe, jagen
+        # Priorität 2: Angreifen wenn nah genug
         for player in players:
             distance = math.hypot(self.enemy.rect.centerx - player.rect.centerx,
                                 self.enemy.rect.centery - player.rect.centery)
-            if distance < 300:  # 300 Pixel Radius
+            if distance < 150:
+                self.state = EnemyState.ATTACK
+                self.target = player
+                return
+
+        # Priorität 3: Jagen wenn Spieler in Sichtweite
+        for player in players:
+            distance = math.hypot(self.enemy.rect.centerx - player.rect.centerx,
+                                self.enemy.rect.centery - player.rect.centery)
+            if distance < 400:
                 self.state = EnemyState.CHASE
                 self.target = player
                 return
@@ -1397,7 +1679,7 @@ class EnemyAI:
         # Standard: Patrouillieren
         self.state = EnemyState.PATROL
 
-    def _execute_state(self, players, walls):
+    def _execute_state(self, players, walls) -> None:
         """Führt den aktuellen Zustand aus"""
         if self.state == EnemyState.PATROL:
             self._patrol(walls)
@@ -1408,20 +1690,24 @@ class EnemyAI:
         elif self.state == EnemyState.RETREAT:
             self._retreat(walls)
 
-    def _patrol(self, walls):
-        """Patrouillier-Logik"""
-        if not self.patrol_points:
-            self._generate_patrol_points()
+    def _patrol(self, walls) -> None:
+        """Dynamische Patrouillier-Logik mit zufälligen Wegpunkten"""
+        if not self.patrol_points or self.current_patrol_index >= len(self.patrol_points):
+            # Wähle einen zufälligen Punkt auf der Map
+            tx = random.randint(Config.GRID_SIZE, Config.WIDTH - Config.GRID_SIZE)
+            ty = random.randint(Config.GRID_SIZE, Config.HEIGHT - Config.GRID_SIZE)
+            self.patrol_points = [(tx, ty)]
+            self.current_patrol_index = 0
 
         target = self.patrol_points[self.current_patrol_index]
         self.enemy.move_toward(target, walls)
 
         distance = math.hypot(self.enemy.rect.centerx - target[0],
                             self.enemy.rect.centery - target[1])
-        if distance < 20:
-            self.current_patrol_index = (self.current_patrol_index + 1) % len(self.patrol_points)
+        if distance < 30:
+            self.current_patrol_index += 1
 
-    def _generate_patrol_points(self):
+    def _generate_patrol_points(self) -> None:
         """Generiert Patrouillier-Punkte"""
         # Einfache Implementierung: 4 Punkte um den Enemy
         center_x, center_y = self.enemy.rect.centerx, self.enemy.rect.centery
@@ -1432,33 +1718,56 @@ class EnemyAI:
             (center_x, center_y + 100)
         ]
 
-    def _chase(self, players, walls):
-        """Jagden-Logik"""
+    def _chase(self, players, walls) -> None:
+        """Intelligente Jagden-Logik mit Hindernis-Umgehung"""
         if self.target and self.target in players:
             target_pos = self.target.rect.center
+            
+            # Versuche in Richtung Ziel zu bewegen
+            old_pos = pygame.Vector2(self.enemy.rect.center)
             self.enemy.move_toward(target_pos, walls)
+            new_pos = pygame.Vector2(self.enemy.rect.center)
+            
+            # Wenn wir stecken bleiben, versuchen wir eine Ausweichbewegung
+            if old_pos.distance_to(new_pos) < 1:
+                # Wähle eine zufällige seitliche Richtung zum "Sliden"
+                side_dir = pygame.Vector2(target_pos[0] - old_pos.x, target_pos[1] - old_pos.y).rotate(random.choice([45, -45, 90, -90]))
+                self.enemy.move(side_dir.x * self.enemy.speed * 0.5, side_dir.y * self.enemy.speed * 0.5, walls, 0)
 
-            # Wenn nah genug, angreifen
-            distance = math.hypot(self.enemy.rect.centerx - target_pos[0],
-                                self.enemy.rect.centery - target_pos[1])
-            if distance < 150:
-                self.state = EnemyState.ATTACK
-
-    def _attack(self, players, walls):
-        """Angriff-Logik"""
+    def _attack(self, players, walls) -> None:
+        """Dynamische Angriffs-Logik: Distanz halten und flankieren"""
         if self.target and self.target in players:
-            # Bleibe in Angriffsreichweite
             target_pos = self.target.rect.center
             distance = math.hypot(self.enemy.rect.centerx - target_pos[0],
                                 self.enemy.rect.centery - target_pos[1])
 
-            if distance > 200:
+            if distance > 250:
                 self.state = EnemyState.CHASE
+            elif distance < 120:
+                # Zu nah - zurückweichen
+                diff = pygame.Vector2(self.enemy.rect.centerx - target_pos[0],
+                                   self.enemy.rect.centery - target_pos[1])
+                if diff.length() > 0:
+                    retreat_dir = diff.normalize()
+                    self.enemy.move(retreat_dir.x * self.enemy.speed, retreat_dir.y * self.enemy.speed, walls, 0)
+                else:
+                    # Wenn exakt auf derselben Position, zufällig wegspringen
+                    jump_dir = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
+                    if jump_dir.length() > 0:
+                        jump_dir.normalize_ip()
+                        self.enemy.move(jump_dir.x * self.enemy.speed, jump_dir.y * self.enemy.speed, walls, 0)
             else:
+                # Distanz halten und seitlich bewegen (Flankieren)
+                flank_dir = pygame.Vector2(target_pos[0] - self.enemy.rect.centerx,
+                                          target_pos[1] - self.enemy.rect.centery).rotate(random.choice([90, -90]))
+                if flank_dir.length() > 0:
+                    flank_dir.normalize_ip()
+                    self.enemy.move(flank_dir.x * self.enemy.speed * 0.7, flank_dir.y * self.enemy.speed * 0.7, walls, 0)
+                
                 # Schieße auf Ziel
                 self.enemy.shoot_at(target_pos)
 
-    def _retreat(self, walls):
+    def _retreat(self, walls) -> None:
         """Flucht-Logik"""
         # Bewege dich weg von der Mitte (wo der Eagle ist)
         center_x, center_y = Config.WIDTH//2, Config.HEIGHT//2
@@ -1477,7 +1786,7 @@ class EnemyAI:
         self.enemy.move(dx * self.enemy.speed, dy * self.enemy.speed, walls, 0)
 
 class Enemy:
-    def __init__(self, x, y, enemy_type=EnemyType.GUNNER):
+    def __init__(self, x, y, enemy_type=EnemyType.GUNNER) -> None:
         self.rect = pygame.Rect(x, y, Config.GRID_SIZE - 10, Config.GRID_SIZE - 10)
         self.color = Config.COLOR_ENEMY
         self.enemy_type = enemy_type
@@ -1511,7 +1820,7 @@ class Enemy:
             self.color = (139, 69, 19)  # Braun
             self.score = Config.ENEMY_SCORE * 2
 
-    def move_toward(self, target_pos, walls):
+    def move_toward(self, target_pos, walls) -> None:
         """Bewegt den Enemy in Richtung eines Ziels"""
         dx = target_pos[0] - self.rect.centerx
         dy = target_pos[1] - self.rect.centery
@@ -1539,30 +1848,39 @@ class Enemy:
         direction = pygame.Vector2(dx, dy)
         return Bullet(self.rect.centerx, self.rect.centery, direction, self.color, "enemy")
 
-    def move(self, dx, dy, walls, shake):
-        """Bewegt Enemy mit Kollisionserkennung"""
-        # Neue Position berechnen
-        new_x = self.rect.centerx + dx
-        new_y = self.rect.centery + dy
-
-        # Bildschirmgrenzen
-        new_x = max(self.rect.width//2, min(new_x, Config.WIDTH - self.rect.width//2))
-        new_y = max(self.rect.height//2, min(new_y, Config.HEIGHT - self.rect.height//2))
-
-        # Kollision mit Wänden prüfen
-        self.rect.centerx = new_x
-        self.rect.centery = new_y
-
+    def move(self, dx, dy, walls, shake) -> None:
+        """Bewegt Enemy mit Kollisionserkennung (axis-separated)"""
+        # X-Bewegung
+        self.rect.x += dx + shake
         for wall in walls:
             if self.rect.colliderect(wall.rect):
-                # X-Achse prüfen
-                if dx != 0:
-                    self.rect.centerx -= dx
-                # Y-Achse prüfen
-                if dy != 0:
-                    self.rect.centery -= dy
+                if dx > 0:
+                    self.rect.right = wall.rect.left
+                elif dx < 0:
+                    self.rect.left = wall.rect.right
 
-    def take_damage(self):
+        # Bildschirmgrenzen X
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > Config.WIDTH:
+            self.rect.right = Config.WIDTH
+
+        # Y-Bewegung
+        self.rect.y += dy + shake
+        for wall in walls:
+            if self.rect.colliderect(wall.rect):
+                if dy > 0:
+                    self.rect.bottom = wall.rect.top
+                elif dy < 0:
+                    self.rect.top = wall.rect.bottom
+
+        # Bildschirmgrenzen Y
+        if self.rect.top < 0:
+            self.rect.top = 0
+        if self.rect.bottom > Config.HEIGHT:
+            self.rect.bottom = Config.HEIGHT
+
+    def take_damage(self) -> bool:
         """Enemy.take_damage() Methode - reduziert Health und gibt True wenn getötet"""
         self.health -= 1
         if self.health <= 0:
@@ -1580,7 +1898,7 @@ class Enemy:
             return self.shoot_at(eagle_pos)  # Standardmäßig auf Eagle schießen
         return None
 
-    def respawn(self, x, y):
+    def respawn(self, x, y) -> None:
         """Enemy respawnet an neuer Position"""
         self.rect.x = x
         self.rect.y = y
@@ -1596,45 +1914,77 @@ class Enemy:
         else:  # BRUTE
             return Config.BRUTE_HP
 
-    def draw(self, surface):
-        """Zeichnet detaillierten Enemy-Panzer"""
+    def draw(self, surface) -> None:
+        """Zeichnet detaillierten Enemy-Panzer mit Bedrohlichkeit und Glow"""
         cx, cy = self.rect.centerx, self.rect.centery
         size = self.rect.width
         half = size // 2
+        tick = pygame.time.get_ticks() / 1000
+
+        # Bedrohlicher roter Glow
+        glow_surf = pygame.Surface((size * 2.5, size * 2.5), pygame.SRCALPHA)
+        pulse = int(25 + 15 * math.sin(tick * 4))
+        glow_rgba = (255, 50, 50, pulse)
+        pygame.draw.circle(glow_surf, glow_rgba, (size * 1.25, size * 1.25), size * 1.25)
+        surface.blit(glow_surf, (cx - size * 1.25, cy - size * 1.25))
 
         # Schatten
-        pygame.draw.ellipse(surface, (0, 0, 0, 80),
-                          (cx - half - 2, cy + half - 5, size + 4, 10))
+        pygame.draw.ellipse(surface, (0, 0, 0, 100),
+                          (cx - half - 2, cy + half - 4, size + 4, 10))
 
-        # Ketten
+        # Ketten mit 3D-Effekt
         chain_color = (60, 60, 60)
-        chain_width = 3
+        chain_width = 4
+        pygame.draw.rect(surface, (40, 40, 40),
+                        (cx - half - chain_width - 1, cy - half + 1, chain_width, size + 2))
         pygame.draw.rect(surface, chain_color,
                         (cx - half - chain_width, cy - half, chain_width, size))
         pygame.draw.rect(surface, chain_color,
                         (cx + half, cy - half, chain_width, size))
+        pygame.draw.rect(surface, (90, 90, 90),
+                        (cx - half - chain_width, cy - half, 1, size))
+        pygame.draw.rect(surface, (90, 90, 90),
+                        (cx + half, cy - half, 1, size))
 
-        # Hauptkörper
+        # Hauptkörper mit Schatten und Highlight
+        pygame.draw.rect(surface, (35, 35, 35),
+                        (cx - half + 1, cy - half + 5, size, size - 5))
         pygame.draw.rect(surface, self.color,
                         (cx - half, cy - half + 4, size, size - 8))
-        pygame.draw.rect(surface, (80, 80, 80),
+        pygame.draw.line(surface, (255, 100, 100, 60),
+                        (cx - half + 2, cy - half + 5),
+                        (cx + half - 2, cy - half + 5), 1)
+        pygame.draw.rect(surface, (70, 30, 30),
                         (cx - half, cy - half + 4, size, size - 8), 1)
 
-        # Turm
-        turret_radius = half - 2
+        # Turm mit Schatten und Highlight
+        turret_radius = half - 3
+        pygame.draw.circle(surface, (40, 20, 20), (cx + 2, cy + 2), turret_radius)
         pygame.draw.circle(surface, (*self.color[:3], 200), (cx, cy), turret_radius)
-        pygame.draw.circle(surface, (80, 80, 80), (cx, cy), turret_radius, 1)
+        pygame.draw.circle(surface, (255, 100, 100, 30), (cx - 1, cy - 1), turret_radius - 2)
+        pygame.draw.circle(surface, (70, 30, 30), (cx, cy), turret_radius, 1)
+        pygame.draw.circle(surface, (200, 50, 50, 150), (cx, cy), 5)
 
-        # Kanone
-        cannon_length = 18
-        cannon_width = 5
+        # Kanone mit Schatten und Highlight
+        cannon_length = 20
+        cannon_width = 6
         cannon_end_x = cx + math.cos(math.radians(self.rotation_angle)) * cannon_length
         cannon_end_y = cy + math.sin(math.radians(self.rotation_angle)) * cannon_length
-        pygame.draw.line(surface, (70, 70, 70),
+        pygame.draw.line(surface, (50, 20, 20),
+                        (cx + 1, cy + 2),
+                        (cannon_end_x + 1, cannon_end_y + 2), cannon_width)
+        pygame.draw.line(surface, (100, 50, 50),
                         (cx, cy),
                         (cannon_end_x, cannon_end_y), cannon_width)
+        highlight_len = int(cannon_length * 0.6)
+        hx = cx + math.cos(math.radians(self.rotation_angle)) * highlight_len
+        hy = cy + math.sin(math.radians(self.rotation_angle)) * highlight_len
+        pygame.draw.line(surface, (180, 80, 80),
+                        (cx, cy), (hx, hy), 2)
+        pygame.draw.circle(surface, (60, 25, 25),
+                          (int(cannon_end_x), int(cannon_end_y)), 3)
 
-    def draw_health_bar(self, surface):
+    def draw_health_bar(self, surface) -> None:
         cx, cy = self.rect.centerx, self.rect.centery - 10
         bar_width = 30
         bar_height = 4
@@ -1649,7 +1999,7 @@ class Enemy:
 # WAVE MANAGER (Horde Modus)
 # ============================================================================
 class WaveManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_wave = 0
         self.total_waves = Config.TOTAL_WAVES
         self.spawn_timer = 0
@@ -1658,7 +2008,7 @@ class WaveManager:
         self.level = 1
         self.is_boss_wave = False
 
-    def _is_spawn_valid(self, x, y, players, enemies, walls, eagle):
+    def _is_spawn_valid(self, x, y, players, enemies, walls, eagle) -> bool:
         """Prüft ob Spawn-Position fair ist"""
         # Mindestens 2 Grid-Zellen Abstand zu Spielern
         for player in players:
@@ -1713,7 +2063,7 @@ class WaveManager:
             return enemy
         return None
 
-    def update(self, enemies_list, frame_count, players, walls, eagle):
+    def update(self, enemies_list, frame_count, players, walls, eagle) -> None:
         """Update Wave Manager"""
         if self.wave_complete:
             return
@@ -1730,7 +2080,7 @@ class WaveManager:
         if self.enemies_to_spawn == 0 and len(enemies_list) == 0:
             self.wave_complete = True
 
-    def next_wave(self):
+    def next_wave(self) -> None:
         """Startet nächste Welle"""
         self.current_wave += 1
         self.wave_complete = False
@@ -1755,7 +2105,7 @@ class WaveManager:
 # ============================================================================
 class MapTheme:
     """Farbthema für Karten"""
-    def __init__(self, name, background, ground_color, wall_colors, accent_color):
+    def __init__(self, name, background, ground_color, wall_colors, accent_color) -> None:
         self.name = name
         self.background = background
         self.ground_color = ground_color
@@ -1788,7 +2138,7 @@ class MapGenerator:
                          (200, 150, 255)),
     }
 
-    def __init__(self, map_type="classic", seed=None):
+    def __init__(self, map_type="classic", seed=None) -> None:
         self.map_type = map_type
         self.seed = seed
         if seed is not None:
@@ -1842,7 +2192,7 @@ class MapGenerator:
 
         return walls
 
-    def _carve_labyrinth(self, grid, cx, cy, grid_w, grid_h):
+    def _carve_labyrinth(self, grid, cx, cy, grid_w, grid_h) -> None:
         """Rekursives Backtracking zum Generieren des Labyrinths"""
         grid[cy][cx] = 0
         stack = [(cx, cy)]
@@ -1866,7 +2216,7 @@ class MapGenerator:
             else:
                 stack.pop()
 
-    def _add_openings(self, grid, num_openings=20):
+    def _add_openings(self, grid, num_openings=20) -> None:
         """Fügt zusätzliche Öffnungen hinzu für bessere Spielbarkeit"""
         grid_h = len(grid)
         grid_w = len(grid[0])
@@ -1974,7 +2324,7 @@ class MapGenerator:
 
         return walls
 
-    def _remove_large_areas(self, grid, max_area=100):
+    def _remove_large_areas(self, grid, max_area=100) -> None:
         """Entfernt Wände um große offene Bereiche zu verkleinern"""
         grid_h = len(grid)
         grid_w = len(grid[0])
@@ -2086,7 +2436,7 @@ class MapGenerator:
 # GAME MANAGER mit verbessertem UI
 # ============================================================================
 class GameManager:
-    def __init__(self):
+    def __init__(self) -> None:
         pygame.init()
         # mixer wird jetzt von SoundManager initialisiert
         self.screen = pygame.display.set_mode((Config.WIDTH, Config.HEIGHT))
@@ -2098,14 +2448,14 @@ class GameManager:
         self.background = BackgroundRenderer()
 
         # Game entities
-        self.players = []
-        self.enemies = []
-        self.walls = []
-        self.bullets = []
-        self.particles = []
-        self.powerups = []
-        self.eagle = None
-        self.wave_manager = None
+        self.players: list["Player"] = []
+        self.enemies: list["Enemy"] = []
+        self.walls: list["Wall"] = []
+        self.bullets: list["Bullet"] = []
+        self.particles: list["Particle"] = []
+        self.powerups: list["Powerup"] = []
+        self.eagle: "Eagle | None" = None
+        self.wave_manager: "WaveManager | None" = None
 
         # Screen shake
         self.screen_shake = 0
@@ -2137,7 +2487,7 @@ class GameManager:
         # Victory sound flag
         self._victory_played = False
 
-    def reset_game(self, mode=GameMode.FFA, map_type="classic"):
+    def reset_game(self, mode=GameMode.FFA, map_type="classic") -> None:
         """Resetet das Spiel"""
         self.players = []
         self.enemies = []
@@ -2183,7 +2533,7 @@ class GameManager:
                         return positions
         return positions
 
-    def _setup_level(self):
+    def _setup_level(self) -> None:
         """Setuppt Level mit Wänden, Spielern und Gegnern"""
         # Generate walls
         map_generator = MapGenerator(self.selected_map)
@@ -2212,7 +2562,7 @@ class GameManager:
         walls.append(Wall(Config.WIDTH - Config.GRID_SIZE, 0, Config.GRID_SIZE, Config.HEIGHT - Config.GRID_SIZE * 2, WallType.STEEL))
         return walls
 
-    def _setup_ffa_mode(self):
+    def _setup_ffa_mode(self) -> None:
         """Setup FFA Modus"""
         p1_controls = {
             'up': pygame.K_w, 'down': pygame.K_s,
@@ -2252,7 +2602,7 @@ class GameManager:
         for _ in range(num_powerups):
             self._spawn_powerup()
 
-    def _setup_horde_mode(self):
+    def _setup_horde_mode(self) -> None:
         """Setup Horde Modus"""
         # Only player 1 in horde mode
         p1_controls = {
@@ -2270,7 +2620,7 @@ class GameManager:
         if self.wave_manager:
             self.wave_manager.next_wave()
 
-    def handle_events(self):
+    def handle_events(self) -> None:
         """Behandelt Eingabe-Events"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -2280,6 +2630,8 @@ class GameManager:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if self.game_state == GameState.PLAYING:
                     self._handle_volume_slider_click(event.pos)
+                elif self.game_state in [GameState.MAIN_MENU, GameState.LEVEL_SELECT]:
+                    self._handle_menu_mouse_click(event.pos)
 
             if event.type == pygame.MOUSEMOTION:
                 if self.game_state == GameState.PLAYING:
@@ -2381,7 +2733,7 @@ class GameManager:
                             self.sound_manager.set_sfx_volume(Config.SFX_VOLUME)
                             self.sound_manager.set_music_volume(Config.MUSIC_VOLUME)
 
-    def _spawn_powerup(self):
+    def _spawn_powerup(self) -> None:
         """Spawnt ein zufälliges Powerup"""
         powerup_types = [Powerup.SHIELD, Powerup.DOUBLE_SHOT, Powerup.REPAIR]
         powerup_type = random.choice(powerup_types)
@@ -2425,12 +2777,12 @@ class GameManager:
         powerup = Powerup(x, y, powerup_type)
         self.powerups.append(powerup)
 
-    def _start_game(self):
+    def _start_game(self) -> None:
         """Startet das Spiel"""
         self.reset_game(self.game_mode, self.selected_map)
         self.game_state = GameState.PLAYING
 
-    def _show_ffa_info(self):
+    def _show_ffa_info(self) -> None:
         """Zeigt FFA-Info"""
         font = pygame.font.SysFont(None, 36)
         text = font.render("FFA Mode: 2 Players + 6-7 AI Enemies", True, Config.COLOR_TEXT)
@@ -2438,7 +2790,7 @@ class GameManager:
         pygame.display.flip()
         pygame.time.wait(1500)
 
-    def _show_horde_info(self):
+    def _show_horde_info(self) -> None:
         """Zeigt Horde-Info"""
         font = pygame.font.SysFont(None, 36)
         text = font.render("Horde Mode: Wave-based, 10 Waves", True, Config.COLOR_TEXT)
@@ -2446,7 +2798,7 @@ class GameManager:
         pygame.display.flip()
         pygame.time.wait(1500)
 
-    def _show_coop_info(self):
+    def _show_coop_info(self) -> None:
         """Zeigt Coop-Info"""
         font = pygame.font.SysFont(None, 36)
         text = font.render("Coop Mode: 2 Players + AI Enemies", True, Config.COLOR_TEXT)
@@ -2454,7 +2806,7 @@ class GameManager:
         pygame.display.flip()
         pygame.time.wait(1500)
 
-    def update(self):
+    def update(self) -> None:
         """Update Game-Logik"""
         if self.game_state != GameState.PLAYING:
             return
@@ -2480,9 +2832,6 @@ class GameManager:
                 continue
 
             dx, dy = p.handle_input(keys)
-            p.direction = pygame.Vector2(dx/Config.PLAYER_SPEED, dy/Config.PLAYER_SPEED)
-            if p.direction.length() > 0:
-                p.direction.normalize_ip()
             p.move(dx, dy, self.walls, self.screen_shake)
 
             # Shooting
@@ -2515,14 +2864,14 @@ class GameManager:
                     self.mission = "Boss Wave - Defend Eagle!"
 
         # Update Particles
-        for p in self.particles[:]:
-            p.update()
-            if p.life <= 0:
-                self.particles.remove(p)
+        for particle in self.particles[:]:
+            particle.update()
+            if particle.life <= 0:
+                self.particles.remove(particle)
 
         # Update Powerups
-        for p in self.powerups[:]:
-            p.update()
+        for powerup in self.powerups[:]:
+            powerup.update()
 
         # Screen Shake dekrementieren
         if self.screen_shake > 0:
@@ -2539,7 +2888,7 @@ class GameManager:
                     self.walls.remove(result)
                     self.score[1] += Config.BRICK_SCORE
                     self.screen_shake = 5
-                    self._create_particles(result.rect.center, Config.COLOR_BRICK, 10)
+                    self._create_small_explosion(result.rect.center)
                     # Ziegel-Wand: knirschender, staubiger Sound
                     self.sound_manager.play_brick_destroy()
                 else:
@@ -2551,46 +2900,49 @@ class GameManager:
                 self._check_bullet_collision(b)
 
         # Check Powerup collision with players
-        for p in self.players:
+        for player in self.players:
             for powerup in self.powerups[:]:
-                if p.rect.colliderect(powerup.hitbox):
+                if player.rect.colliderect(powerup.hitbox):
                     # Apply powerup effect
                     if powerup.powerup_type == Powerup.SHIELD:
-                        p.shield_charges = Config.SHIELD_MAX_CHARGES
+                        player.shield_charges = Config.SHIELD_MAX_CHARGES
                         self.screen_shake = 5
                     elif powerup.powerup_type == Powerup.DOUBLE_SHOT:
-                        p.double_shot_active = True
-                        p.double_shot_timer = Config.DOUBLE_SHOOT_DURATION * 60  # In Frames
+                        player.double_shot_active = True
+                        player.double_shot_timer = Config.DOUBLE_SHOOT_DURATION * 60  # In Frames
                         self.screen_shake = 5
                     elif powerup.powerup_type == Powerup.REPAIR:
-                        p.health = min(p.health + Config.REPAIR_AMOUNT, Config.MAX_LIVES * 2)
+                        player.health = min(player.health + Config.REPAIR_AMOUNT, Config.MAX_LIVES * 2)
                         self.screen_shake = 5
                     powerup.rect = pygame.Rect(0, 0, 0, 0)  # Mark for removal
                     self.sound_manager.play_powerup()
                     break
 
-    def _check_bullet_collision(self, bullet):
+    def _check_bullet_collision(self, bullet) -> None:
         """Checkt Kollision von Bullet mit Entitäten"""
+        if bullet not in self.bullets:
+            return
+
         # Check eagle collision (nur wenn noch nicht getroffen)
         if self.eagle and self.eagle.state == EagleState.PROTECTED and bullet.rect.colliderect(self.eagle.rect):
             self.eagle.state = EagleState.HIT
             self.screen_shake = 20
-            self._create_particles(bullet.rect.center, Config.COLOR_EAGLE, 30)
+            self._create_explosion(bullet.rect.center)
             self.game_state = GameState.GAME_OVER
             self.bullets.remove(bullet)
             return
 
         # Check player collision
-        for p in self.players:
-            if bullet.rect.colliderect(p.rect):
-                if bullet.owner != f"player{p.player_id}":
-                    if p.health > 0:
-                        if p.take_damage(1):
+        for player in self.players:
+            if bullet.rect.colliderect(player.rect):
+                if bullet.owner != f"player{player.player_id}":
+                    if player.health > 0:
+                        if player.take_damage(1):
                             self.screen_shake = 5
-                            self._create_particles(bullet.rect.center, p.color, 10)
-                            if p.health <= 0:
-                                p.lives -= 1
-                                if p.lives <= 0:
+                            self._create_small_explosion(bullet.rect.center)
+                            if player.health <= 0:
+                                player.lives -= 1
+                                if player.lives <= 0:
                                     self.game_state = GameState.GAME_OVER
                                     self.sound_manager.play_lose()
                                 else:
@@ -2600,39 +2952,107 @@ class GameManager:
                                         px, py = free_pos[0]
                                     else:
                                         px, py = 80, 80  # Fallback
-                                    p.rect.x = px
-                                    p.rect.y = py
-                                    p.health = Config.MAX_LIVES * 2
-                                    p.respawn_timer = Config.RESPAWN_COOLDOWN * 60  # In Frames
-                                    p.invulnerable = True
-                    self.bullets.remove(bullet)
+                                    player.rect.x = px
+                                    player.rect.y = py
+                                    player.health = Config.MAX_LIVES * 2
+                                    player.respawn_timer = Config.RESPAWN_COOLDOWN * 60  # In Frames
+                                    player.invulnerable = True
+                    if bullet in self.bullets:
+                        self.bullets.remove(bullet)
                 break
+
+        if bullet not in self.bullets:
+            return
 
         # Check enemy collision
         for e in list(self.enemies):
             if bullet.rect.colliderect(e.rect):
                 if bullet.owner in ["player1", "player2"]:
                     if e.take_damage():
-                        self.enemies.remove(e)
+                        if e in self.enemies:
+                            self.enemies.remove(e)
                         self.score[1] += Config.ENEMY_SCORE
                         self.screen_shake = 10
-                        self._create_particles(e.rect.center, Config.COLOR_ENEMY, 20)
+                        self._create_explosion(e.rect.center)
                         self.sound_manager.play_tank_explosion()
-                    self.bullets.remove(bullet)
+                    if bullet in self.bullets:
+                        self.bullets.remove(bullet)
                 break
 
-    def _create_particles(self, position, color, count):
-        """Erstellt Partikel-Effekte"""
-        for _ in range(count):
+    def _create_particles(self, position, color, count, particle_type="normal") -> None:
+        """Erstellt Partikel mit Feuer, Rauch und Funken"""
+        multiplier = Config.PARTICLE_COUNT_MULTIPLIER
+        actual_count = count * multiplier
+        
+        for _ in range(actual_count):
             angle = random.uniform(0, 2 * math.pi)
-            speed = random.uniform(2, 6)
+            if particle_type == "explosion":
+                speed = random.uniform(1, 8)
+                size = random.uniform(2, 6)
+            elif particle_type == "smoke":
+                speed = random.uniform(0.5, 3)
+                size = random.uniform(3, 8)
+            elif particle_type == "sparks":
+                speed = random.uniform(3, 10)
+                size = random.uniform(1, 3)
+            else:
+                speed = random.uniform(2, 6)
+                size = 2
+            
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
-            self.particles.append(Particle(
-                position[0], position[1], color, vx, vy, random.randint(20, 40)
-            ))
+            
+            if particle_type == "explosion":
+                fire_color = random.choice(Config.COLOR_FIRE)
+                self.particles.append(Particle(
+                    position[0] + random.uniform(-5, 5),
+                    position[1] + random.uniform(-5, 5),
+                    fire_color, vx, vy,
+                    random.randint(25, 50),
+                    size=int(size),
+                    particle_type="fire"
+                ))
+            elif particle_type == "smoke":
+                smoke_color = random.choice(Config.COLOR_SMOKE)
+                self.particles.append(Particle(
+                    position[0] + random.uniform(-8, 8),
+                    position[1] + random.uniform(-8, 8),
+                    smoke_color, vx * 0.5, vy * 0.5,
+                    random.randint(40, 80),
+                    size=int(size),
+                    particle_type="smoke"
+                ))
+            elif particle_type == "sparks":
+                spark_color = random.choice(Config.COLOR_SPARK)
+                self.particles.append(Particle(
+                    position[0], position[1],
+                    spark_color, vx, vy,
+                    random.randint(15, 35),
+                    size=int(size),
+                    particle_type="spark"
+                ))
+            else:
+                self.particles.append(Particle(
+                    position[0] + random.uniform(-3, 3),
+                    position[1] + random.uniform(-3, 3),
+                    color, vx, vy,
+                    random.randint(20, 40),
+                    size=int(size),
+                    particle_type="normal"
+                ))
 
-    def draw(self):
+    def _create_explosion(self, position) -> None:
+        """Vollständige Explosion mit Feuer, Rauch und Funken"""
+        self._create_particles(position, Config.COLOR_FIRE[0], 15, "explosion")
+        self._create_particles(position, Config.COLOR_SMOKE[0], 10, "smoke")
+        self._create_particles(position, Config.COLOR_SPARK[0], 12, "sparks")
+
+    def _create_small_explosion(self, position) -> None:
+        """Kleinere Explosion für Wand-Zerstörung"""
+        self._create_particles(position, Config.COLOR_BRICK, 8, "explosion")
+        self._create_particles(position, Config.COLOR_SMOKE[0], 5, "smoke")
+
+    def draw(self) -> None:
         """Zeichnet das Spiel"""
         self.screen.fill(Config.COLOR_BLACK)
 
@@ -2651,7 +3071,7 @@ class GameManager:
 
         pygame.display.flip()
 
-    def _draw_rect(self, x, y, width, height, color, border=2, border_color=(100, 100, 150)):
+    def _draw_rect(self, x, y, width, height, color, border=2, border_color=(100, 100, 150)) -> None:
         """Hilfsfunktion zum Zeichnen von Rechtecken mit Rahmen"""
         if border > 0:
             pygame.draw.rect(self.screen, border_color, (x - border, y - border, width + border*2, height + border*2))
@@ -2667,7 +3087,67 @@ class GameManager:
         self.screen.blit(rendered, (Config.WIDTH//2 - rendered.get_width()//2, y_offset))
         return rendered.get_height()
 
-    def _draw_main_menu(self):
+    def _handle_menu_mouse_click(self, pos) -> None:
+        """Behandelt Mausklicks im Hauptmenü und in der Levelauswahl"""
+        x, y = pos
+        
+        if self.game_state == GameState.MAIN_MENU:
+            # Hauptmenü Button-Bereiche
+            box_width = 650
+            box_height = 480
+            box_x = Config.WIDTH//2 - box_width//2
+            box_y = Config.HEIGHT//2 - box_height//2 - 40
+            
+            btn_width = 520
+            btn_height = 58
+            btn_x = Config.WIDTH//2 - btn_width//2
+            btn_y = box_y + 140
+            
+            for i in range(3):
+                btn_rect = pygame.Rect(btn_x, btn_y + i * 72, btn_width, btn_height)
+                if btn_rect.collidepoint(x, y):
+                    if i == 0:
+                        self.game_mode = GameMode.FFA
+                    elif i == 1:
+                        self.game_mode = GameMode.HORDE
+                    elif i == 2:
+                        self.game_mode = GameMode.COOP
+                    
+                    self.game_state = GameState.LEVEL_SELECT
+                    return
+
+        elif self.game_state == GameState.LEVEL_SELECT:
+            # Level-Auswahl Button-Bereiche
+            box_width = 700
+            box_height = 550
+            box_x = Config.WIDTH//2 - box_width//2
+            box_y = Config.HEIGHT//2 - box_height//2 - 30
+            
+            # Map Buttons
+            btn_width = 400
+            btn_height = 55
+            btn_x = Config.WIDTH//2 - btn_width//2
+            
+            # Map-Vorschau-Bereich (Berechnung von btn_y basierend auf Vorschau)
+            preview_h = 20 * 10 #- Wait, preview_h = 20 * 20 = 400
+            preview_y = box_y + 100
+            btn_y = preview_y + 400 + 30 # 20 * 20 = 400
+            
+            for i in range(3):
+                btn_rect = pygame.Rect(btn_x, btn_y + i * 75, btn_width, btn_height)
+                if btn_rect.collidepoint(x, y):
+                    maps = ["classic", "industrial", "desert"]
+                    self.selected_map = maps[i]
+                    return
+            
+            # Start Button
+            start_y = btn_y + 3 * 75 + 20
+            start_rect = pygame.Rect(Config.WIDTH//2 - 200, start_y, 400, 55)
+            if start_rect.collidepoint(x, y):
+                self._start_game()
+                return
+
+    def _draw_main_menu(self) -> None:
         """Modernes Hauptmenü mit animiertem Hintergrund und professionellem Design"""
         tick = pygame.time.get_ticks() / 1000
 
@@ -2794,12 +3274,17 @@ class GameManager:
         footer = footer_font.render("Press F for Fullscreen  |  v1.0 Enhanced", True, (100, 100, 140))
         self.screen.blit(footer, (Config.WIDTH//2 - footer.get_width()//2, footer_y))
 
-    def _draw_level_select(self):
-        """Verbesserte Level-Auswahl mit professionellem Design"""
+    def _draw_level_select(self) -> None:
+        """Verbesserte Level-Auswahl mit professionellem Design und dynamischen Effekten"""
         tick = pygame.time.get_ticks() / 1000
+        mouse_pos = pygame.mouse.get_pos()
 
-        # Dunkler Hintergrund
-        self.screen.fill((20, 20, 30))
+        # Animierter, tiefer Hintergrund
+        for i in range(Config.HEIGHT // 2):
+            r = int(15 + 10 * math.sin(tick * 0.2 + i / 100))
+            g = int(15 + 12 * math.cos(tick * 0.3 + i / 120))
+            b = int(30 + 20 * math.sin(tick * 0.4 + i / 80))
+            pygame.draw.line(self.screen, (r, g, b), (0, i * 2), (Config.WIDTH, i * 2))
 
         # Titel-Box
         box_width = 700
@@ -2807,9 +3292,9 @@ class GameManager:
         box_x = Config.WIDTH//2 - box_width//2
         box_y = Config.HEIGHT//2 - box_height//2 - 30
 
-        # Box-Hintergrund
-        pygame.draw.rect(self.screen, (25, 25, 40), (box_x - 10, box_y - 10, box_width + 20, box_height + 20), border_radius=10)
-        pygame.draw.rect(self.screen, (100, 100, 180), (box_x - 10, box_y - 10, box_width + 20, box_height + 20), 3, border_radius=10)
+        # Box-Hintergrund mit leichtem Glow
+        pygame.draw.rect(self.screen, (15, 15, 30, 180), (box_x - 10, box_y - 10, box_width + 20, box_height + 20), border_radius=12)
+        pygame.draw.rect(self.screen, (100, 100, 180), (box_x - 10, box_y - 10, box_width + 20, box_height + 20), 3, border_radius=12)
 
         # Titel
         self._draw_centered_text("SELECT MAP", box_y + 30, font_size=64, bold=True, color=(255, 215, 0))
@@ -2834,8 +3319,13 @@ class GameManager:
         preview_x = Config.WIDTH//2 - preview_w//2
         preview_y = box_y + 100
 
-        # Vorschau-Box
-        pygame.draw.rect(self.screen, (15, 15, 25), (preview_x - 5, preview_y - 35, preview_w + 10, preview_h + 45), border_radius=5)
+        # Vorschau-Box mit Glow
+        glow_alpha = int(40 + 20 * math.sin(tick * 2))
+        glow_surf = pygame.Surface((preview_w + 20, preview_h + 20), pygame.SRCALPHA)
+        pygame.draw.rect(glow_surf, (100, 100, 255, glow_alpha), (0, 0, preview_w + 20, preview_h + 20), border_radius=10)
+        self.screen.blit(glow_surf, (preview_x - 10, preview_y - 10))
+        
+        pygame.draw.rect(self.screen, (10, 10, 20), (preview_x - 5, preview_y - 35, preview_w + 10, preview_h + 45), border_radius=5)
         pygame.draw.rect(self.screen, (80, 80, 120), (preview_x - 5, preview_y - 35, preview_w + 10, preview_h + 45), 2, border_radius=5)
 
         # Vorschau-Titel
@@ -2843,26 +3333,19 @@ class GameManager:
         preview_title = preview_title_font.render("MAP PREVIEW", True, (150, 150, 200))
         self.screen.blit(preview_title, (Config.WIDTH//2 - preview_title.get_width()//2, preview_y - 30))
 
-        # Generiere Vorschau
-        selected_idx = 0
-        for i, (name, desc, color, key) in enumerate(maps):
-            brick_ratio = 0.5 if i == 0 else (0.4 if i == 1 else 0.6)
-
-            for py in range(preview_grid_h):
-                for px in range(preview_grid_w):
-                    seed = px * 7 + py * 13 + i * 47
-                    is_brick = (seed % 100) // 1 < (100 * brick_ratio)
-                    cell_color = Config.COLOR_BRICK if is_brick else Config.COLOR_STEEL
-                    pygame.draw.rect(self.screen, cell_color,
-                                   (preview_x + px * preview_size, preview_y + py * preview_size,
-                                    preview_size, preview_size))
-
-            # Rahmen um ausgewählte Map
-            if i == selected_idx:
-                pulse = int(50 * math.sin(tick * 3))
-                border_color = tuple(min(255, max(0, c + pulse)) for c in (255, 255, 0))
-                pygame.draw.rect(self.screen, border_color,
-                               (preview_x - 3, preview_y - 3, preview_w + 6, preview_h + 6), 3, border_radius=3)
+        # Generiere Vorschau basierend auf ausgewählter Map
+        current_map_idx = ["classic", "industrial", "desert"].index(self.selected_map)
+        
+        for py in range(preview_grid_h):
+            for px in range(preview_grid_w):
+                # Deterministisch für die ausgewählte Map
+                seed = px * 7 + py * 13 + current_map_idx * 47
+                brick_ratio = 0.5 if current_map_idx == 0 else (0.4 if current_map_idx == 1 else 0.6)
+                is_brick = (seed % 100) // 1 < (100 * brick_ratio)
+                cell_color = Config.COLOR_BRICK if is_brick else Config.COLOR_STEEL
+                pygame.draw.rect(self.screen, cell_color,
+                               (preview_x + px * preview_size, preview_y + py * preview_size,
+                                preview_size, preview_size))
 
         # Map-Buttons unterhalb der Vorschau
         btn_font = pygame.font.SysFont(None, 30, bold=True)
@@ -2872,21 +3355,34 @@ class GameManager:
 
         for i, (name, desc, color, key) in enumerate(maps):
             btn_x = Config.WIDTH//2 - btn_width//2
-
-            # Button-Hintergrund
+            btn_rect = pygame.Rect(btn_x, btn_y + i * 75, btn_width, btn_height)
+            
+            # Hover-Effekt
+            is_hovered = btn_rect.collidepoint(mouse_pos)
+            is_selected = (self.selected_map == ["classic", "industrial", "desert"][i])
+            
             pulse = int(25 * math.sin(tick * 2 + i * 0.5))
-            hover_color = tuple(min(255, max(0, c + pulse)) for c in color)
-
-            pygame.draw.rect(self.screen, (20, 20, 35), (btn_x, btn_y + i * 75, btn_width, btn_height), border_radius=8)
-            pygame.draw.rect(self.screen, hover_color, (btn_x, btn_y + i * 75, btn_width, btn_height), 2, border_radius=8)
+            base_color = color if is_selected else (100, 100, 120)
+            
+            # Button-Hintergrund
+            bg_color = (30, 30, 50) if is_hovered else (20, 20, 35)
+            pygame.draw.rect(self.screen, bg_color, (btn_x, btn_y + i * 75, btn_width, btn_height), border_radius=8)
+            
+            # Button-Rahmen
+            border_color = color if is_selected or is_hovered else (60, 60, 80)
+            if is_selected:
+                border_color = tuple(min(255, max(0, c + pulse)) for c in color)
+                
+            pygame.draw.rect(self.screen, border_color, (btn_x, btn_y + i * 75, btn_width, btn_height), 2 if not is_selected else 3, border_radius=8)
 
             # Key-Hint
             key_font = pygame.font.SysFont(None, 26)
-            key_rendered = key_font.render(f"[{key}]", True, color)
+            key_rendered = key_font.render(f"[{key}]", True, border_color)
             self.screen.blit(key_rendered, (btn_x + 15, btn_y + i * 75 + 16))
 
             # Map-Name
-            name_rendered = btn_font.render(name, True, (255, 255, 255))
+            name_color = (255, 255, 255) if is_selected else (200, 200, 220)
+            name_rendered = btn_font.render(name, True, name_color)
             self.screen.blit(name_rendered, (btn_x + 55, btn_y + i * 75 + 12))
 
             # Beschreibung
@@ -2894,12 +3390,16 @@ class GameManager:
             desc_rendered = desc_font.render(desc, True, (160, 160, 180))
             self.screen.blit(desc_rendered, (btn_x + 55, btn_y + i * 75 + 38))
 
-        # Start-Button
+        # Start-Button mit Pulse-Effekt
         start_y = btn_y + 3 * 75 + 20
         start_pulse = int(40 * math.sin(tick * 4))
         start_color = (min(255, 255 + start_pulse), min(255, 255 + start_pulse), 0)
+        start_rect = pygame.Rect(Config.WIDTH//2 - 200, start_y, 400, 55)
+        
+        # Hover for start button
+        start_bg = (60, 60, 30) if start_rect.collidepoint(mouse_pos) else (40, 40, 20)
 
-        pygame.draw.rect(self.screen, (40, 40, 20), (Config.WIDTH//2 - 200, start_y, 400, 55), border_radius=10)
+        pygame.draw.rect(self.screen, start_bg, (Config.WIDTH//2 - 200, start_y, 400, 55), border_radius=10)
         pygame.draw.rect(self.screen, start_color, (Config.WIDTH//2 - 200, start_y, 400, 55), 3, border_radius=10)
 
         start_font = pygame.font.SysFont(None, 32, bold=True)
@@ -2912,16 +3412,10 @@ class GameManager:
         footer = footer_font.render("Press F for Fullscreen  |  Press ESC to Back", True, (120, 120, 160))
         self.screen.blit(footer, (Config.WIDTH//2 - footer.get_width()//2, footer_y))
 
-    def _draw_game(self):
+    def _draw_game(self) -> None:
         """Zeichnet Gameplay"""
         # Hintergrund zeichnen
         self.background.draw(self.screen)
-
-        # Screen shake effect
-        shake_x = random.randint(-self.screen_shake, self.screen_shake)
-        shake_y = random.randint(-self.screen_shake, self.screen_shake)
-        offset_x = shake_x
-        offset_y = shake_y
 
         # Draw Eagle
         if self.eagle:
@@ -2932,8 +3426,8 @@ class GameManager:
             wall.draw(self.screen)
 
         # Draw Players
-        for p in self.players:
-            p.draw(self.screen)
+        for player in self.players:
+            player.draw(self.screen)
 
         # Draw Enemies
         for e in self.enemies:
@@ -2941,21 +3435,21 @@ class GameManager:
             e.draw_health_bar(self.screen)
 
         # Draw Powerups
-        for p in self.powerups:
-            p.draw(self.screen)
+        for powerup in self.powerups:
+            powerup.draw(self.screen)
 
         # Draw Bullets
         for b in self.bullets:
             b.draw_with_trail(self.screen)
 
         # Draw Particles
-        for p in self.particles:
-            p.draw(self.screen)
+        for particle in self.particles:
+            particle.draw(self.screen)
 
         # Draw UI
         self._draw_ui()
 
-    def _draw_hud_panel(self, x, y, width, height, title=None):
+    def _draw_hud_panel(self, x, y, width, height, title=None) -> None:
         """Zeichnet ein HUD-Panel mit Hintergrund und Titel"""
         # Panel-Hintergrund mit Transparenz
         panel = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -2971,7 +3465,7 @@ class GameManager:
             title_rendered = title_font.render(title, True, (180, 180, 220))
             self.screen.blit(title_rendered, (x + 10, y + 8))
 
-    def _draw_ui(self):
+    def _draw_ui(self) -> None:
         """Verbessertes HUD mit Panels und Lautstärkeregler"""
         tick = pygame.time.get_ticks() / 1000
 
@@ -3016,29 +3510,29 @@ class GameManager:
 
         # Spieler-Infos
         info_y = player_panel_y + 35
-        for p in self.players:
+        for player in self.players:
             player_font = pygame.font.SysFont(None, 24, bold=True)
-            p_text = player_font.render(f"P{p.player_id}", True, p.color)
+            p_text = player_font.render(f"P{player.player_id}", True, player.color)
             self.screen.blit(p_text, (player_panel_x + 15, info_y))
 
             # Lives mit Icon
-            lives_text = f"♥" * p.lives
+            lives_text = "♥" * player.lives
             lives_font = pygame.font.SysFont(None, 20)
-            lives_rendered = lives_font.render(lives_text, True, p.color)
+            lives_rendered = lives_font.render(lives_text, True, player.color)
             self.screen.blit(lives_rendered, (player_panel_x + 70, info_y + 2))
 
             info_y += 28
 
             # Shield-Indikator
-            if p.shield_charges > 0:
-                shield_text = f"🛡️ Shield: {p.shield_charges}"
+            if player.shield_charges > 0:
+                shield_text = f"🛡️ Shield: {player.shield_charges}"
                 shield_font = pygame.font.SysFont(None, 20)
                 shield_rendered = shield_font.render(shield_text, True, (0, 255, 255))
                 self.screen.blit(shield_rendered, (player_panel_x + 15, info_y))
                 info_y += 24
 
             # Double Shot-Indikator
-            if p.double_shot_active:
+            if player.double_shot_active:
                 ds_pulse = int(50 * math.sin(tick * 5))
                 ds_color = (min(255, 255 + ds_pulse), min(255, 255 + ds_pulse), 0)
                 ds_text = "⚡ DOUBLE SHOT ACTIVE"
@@ -3081,7 +3575,7 @@ class GameManager:
         pause_rendered = pause_font.render("[ESC] Pause", True, (120, 120, 160))
         self.screen.blit(pause_rendered, (Config.WIDTH - pause_rendered.get_width() - 15, status_bar_y + 12))
 
-    def _draw_volume_sliders(self):
+    def _draw_volume_sliders(self) -> None:
         """Zeichnet Lautstärkeregler für Musik und SFX (unten rechts)"""
         slider_width = Config.VOLUME_SLIDER_WIDTH
         slider_height = Config.VOLUME_SLIDER_HEIGHT
@@ -3143,7 +3637,7 @@ class GameManager:
         sfx_pct = slider_font.render(f"{int(self.sound_manager.get_sfx_volume() * 100)}%", True, (200, 255, 200))
         self.screen.blit(sfx_pct, (bar_x + bar_w + 25, sfx_bar_y))
 
-    def _handle_volume_slider_click(self, mouse_pos):
+    def _handle_volume_slider_click(self, mouse_pos) -> None:
         """Behandelt Klick auf Lautstärkeregler"""
         slider_width = Config.VOLUME_SLIDER_WIDTH
         margin = 10
@@ -3173,7 +3667,7 @@ class GameManager:
             ratio = (x - bar_x) / bar_w
             self.sound_manager.set_sfx_volume(ratio)
 
-    def _handle_volume_slider_drag(self, mouse_pos):
+    def _handle_volume_slider_drag(self, mouse_pos) -> None:
         """Behandelt Drag auf Lautstärkeregler"""
         slider_width = Config.VOLUME_SLIDER_WIDTH
         margin = 10
@@ -3207,7 +3701,7 @@ class GameManager:
             ratio = max(0.0, min(1.0, (x - bar_x) / bar_w))
             self.sound_manager.set_sfx_volume(ratio)
 
-    def _draw_overlay(self, title, subtitle=None, buttons=None):
+    def _draw_overlay(self, title, subtitle=None, buttons=None) -> None:
         """Zeichnet ein einheitliches Overlay für Menüs"""
         tick = pygame.time.get_ticks() / 1000
 
@@ -3271,7 +3765,7 @@ class GameManager:
                 text_rendered = btn_font.render(text, True, (255, 255, 255))
                 self.screen.blit(text_rendered, (btn_x + 55, btn_y + i * 60 + 11))
 
-    def _draw_paused(self):
+    def _draw_paused(self) -> None:
         """Verbesserter Pause-Screen"""
         self._draw_overlay(
             title="⏸ PAUSED",
@@ -3282,7 +3776,7 @@ class GameManager:
             ]
         )
 
-    def _draw_gameover(self):
+    def _draw_gameover(self) -> None:
         """Verbessertes Game Over Screen"""
         self._draw_overlay(
             title="MISSION FAILED",
@@ -3295,9 +3789,8 @@ class GameManager:
         )
         self.sound_manager.play_lose()
 
-    def _draw_victory(self):
+    def _draw_victory(self) -> None:
         """Verbessertes Victory Screen"""
-        tick = pygame.time.get_ticks() / 1000
 
         self._draw_overlay(
             title="🏆 VICTORY!",
@@ -3320,7 +3813,7 @@ class GameManager:
             conf_color = random.choice([(255, 215, 0), (255, 0, 0), (0, 255, 0), (0, 100, 255)])
             pygame.draw.circle(self.screen, conf_color, (int(conf_x), int(conf_y)), random.randint(2, 5))
 
-    def run(self):
+    def run(self) -> None:
         """Haupt-Spiel-Schleife"""
         while self.running:
             self.handle_events()
@@ -3333,7 +3826,7 @@ class GameManager:
 # ============================================================================
 # MAIN
 # ============================================================================
-def main():
+def main() -> None:
     game = GameManager()
     game.run()
 

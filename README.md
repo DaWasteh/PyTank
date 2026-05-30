@@ -76,7 +76,7 @@ pip install pyinstaller
 Führe folgenden Befehl im Projektverzeichnis aus:
 bash
 
-pyinstaller --onefile --windowed --icon=icon.ico pytank.py
+pyinstaller --onefile --windowed pytank.py
 
 Optionale Parameter:
 
