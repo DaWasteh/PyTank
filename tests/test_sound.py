@@ -1,7 +1,8 @@
-import pygame
 import math
-import sys
 import os
+import sys
+
+import pygame
 
 # Füge das Projekt-Wurzelverzeichnis zum Python-Pfad hinzu
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -10,7 +11,7 @@ if project_root not in sys.path:
 
 try:
     pygame.init()
-    
+
     print("pygame.mixer.init() versuchen...")
     try:
         pygame.mixer.init(44100, -16, 2, 1024)
@@ -22,7 +23,7 @@ try:
         print("Sound-Test: Übersprungen (headless environment)")
         pygame.quit()
         sys.exit(0)
-    
+
     samples = []
     for i in range(100):
         t = i/44100
@@ -31,7 +32,7 @@ try:
     sound = pygame.mixer.Sound(bytes(samples))
     sound.set_volume(0.15)
     print('Sound OK, Länge:', len(samples))
-    
+
 except Exception as e:
     print(f"Fehler: {e}")
     import traceback

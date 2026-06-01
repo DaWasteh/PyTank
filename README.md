@@ -1,169 +1,181 @@
 # PyTank - Tank Battle Arena
 
-Ein modernes 2D-Tank-Spiel mit verbessertem Audio-System, intelligenter KI und ansprechendem Design.
+PyTank ist ein modernes 2D-Tank-Spiel in Python/Pygame mit synthetischem Sound, State-Machine-KI, Powerups, dynamischen Maps und drei klar getrennten Spielarten: **Free For All**, **Horde** und **Missionen**.
 
-## 📋 Features
+## Features
 
-- **Hochwertige synthetisierte Sounds** (32/64 Bit Audio)
-- **Intelligente Gegner-KI** mit State-Machine-System
-- **Mehrere Spielmodi**: FFA, Horde und Co-op
-- **Dynamische Level-Generation** mit thematischen Variationen
-- **Verbessertes UI** mit animierten Elementen
-- **Powerups-System** (Shield, Double Shot, Repair)
-- **Wave-basiertes Gameplay** mit steigendem Schwierigkeitsgrad
+- **Drei Spielmodi**: FFA, Horde und Missionen
+- **Co-op als Add-on**: per Toggle für alle Modi aktivierbar, kein eigener Modus
+- **KI-Schwierigkeiten**: Leicht, Mittel, Schwer und Mixed
+- **Mixed-KI**: mehrere KI-Logiken gleichzeitig auf der Map
+- **FFA-Teamsystem**: solo jeder gegen jeden, mit Co-op feste 2er-Teams bei gleicher Tankanzahl
+- **Horde-Modus**: Wellen überleben, solo oder zu zweit
+- **Missionen**: drei kurze Tutorial-/Quest-Maps mit Pythaner-vs.-Rusts-Comic-Story
+- **Powerups**: Shield, Double Shot, Repair
+- **Dynamische und handgebaute Maps** mit thematischen Varianten
+- **Synthetisierte Sounds** ohne externe Audiodateien
 
-## 🚀 Installation
+## Spielmodi
+
+### Free For All
+
+- **Solo**: 1 Spieler + KI-Tanks, jeder gegen jeden.
+- **Co-op**: 2 Spieler im selben Team; die KI wird ebenfalls in 2er-Teams verteilt.
+- Die Gesamtanzahl der Tanks bleibt gleich.
+- Ziel: Als letztes Team bzw. letzter Tank überleben.
+
+### Horde
+
+- Solo oder Co-op spielbar.
+- Überlebe Gegnerwellen bis zur finalen Welle.
+- Gegner spawnen wellenbasiert und werden mit späteren Wellen gefährlicher.
+
+### Missionen
+
+Drei kleine Tutorial-Quests mit eigenen Maps und Comic-Texten:
+
+1. **Mission 1: Tor** - super leicht
+2. **Mission 2: Rostpass** - leicht
+3. **Mission 3: Ferrum-Brücke** - mittel
+
+Story-Kurzfassung: Die Pythaner werden von den Rusts angegriffen. Der Kommandant schickt Pythy-Wan `Player 1` als letzte Hoffnung in drei Einsätze.
+
+## Schwierigkeit
+
+Für FFA und Horde wählbar:
+
+- **Leicht**: langsamere, ungenauere KI
+- **Mittel**: Standard-KI
+- **Schwer**: aggressivere, schnellere und präzisere KI
+- **Mixed**: jeder KI-Panzer bekommt zufällig bzw. verteilt eine Leicht-/Mittel-/Schwer-Variante
+
+Missionen nutzen ihre eigene Story-Schwierigkeit.
+
+## Steuerung
+
+### Menü
+
+| Aktion | Taste |
+| --- | --- |
+| Modus/Map wählen | Pfeile oder WASD |
+| Bestätigen / Starten | Enter oder Leertaste |
+| Co-op umschalten | C |
+| Schwierigkeit wechseln | D |
+| Zurück | ESC / Backspace |
+| Vollbild | F |
+
+### Spieler 1
+
+| Aktion | Taste |
+| --- | --- |
+| Bewegung | WASD |
+| Schießen | Leertaste |
+
+### Spieler 2 / Co-op
+
+| Aktion | Taste |
+| --- | --- |
+| Bewegung | Pfeiltasten |
+| Schießen | Enter |
+
+### Im Spiel
+
+| Aktion | Taste |
+| --- | --- |
+| Pause | ESC oder P |
+| Musik leiser/lauter | V / C |
+| SFX leiser/lauter | B / N |
+| Mute | M |
+| Vollbild | F |
+
+## Installation
 
 ### Voraussetzungen
 
-- Python 3.10 oder neuer
-- Pygame (`pip install pygame`)
+- Python **3.10 bis 3.12** empfohlen
+- Pygame aus `requirements.txt`
 
-### Installation
+> Hinweis: Für dieses Projekt wird lokal Python 3.12 verwendet. Python 3.14 ist aktuell für Pygame/CI nicht empfohlen.
 
-1. Klone das Repository:
+### Setup
 
-   ```bash
-   git clone https://github.com/dein-benutzername/pytank.git
-   cd pytank
+```bash
+git clone https://github.com/DaWasteh/pytank.git
+cd pytank
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
 
+### Starten
 
-2. Installiere die Abhängigkeiten:
+```bash
+python pytank.py
+```
 
-   ```bash
-    pip install -r requirements.txt
+Oder direkt ohne aktivierte Umgebung:
 
-3. Starte das Spiel:
+```bash
+.venv\Scripts\python.exe pytank.py
+```
 
-   ```bash
-    python pytank.py
+## Tests und Checks
 
-🎮 Spielsteuerung
-FFA Mode (2 Spieler)
+```bash
+python -m py_compile pytank.py
+python -m flake8 pytank.py tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+python -m flake8 pytank.py tests/ --count --statistics --max-line-length=120
+python tests/test_start.py
+python tests/test_sound.py
+python tests/test_exe.py
+```
 
-    Spieler 1:
-        Bewegung: WASD
-        Schießen: Leertaste
-    Spieler 2:
-        Bewegung: Pfeiltasten
-        Schießen: Enter
+In Headless-Umgebungen können SDL-Dummy-Treiber genutzt werden:
 
-Horde Mode (Singleplayer)
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python tests/test_start.py
+```
 
-    Bewegung: WASD
-    Schießen: Leertaste
+## Standalone-EXE erstellen
 
-Allgemeine Steuerung
+PyInstaller installieren:
 
-    Pause: ESC
-    Vollbild: F
-    Musik lauter/leiser: W/V
-    SFX lauter/leiser: N/B
-    Stummschaltung: M
-
-🔧 Standalone EXE erstellen
-
-Um eine ausführbare Windows-EXE zu erstellen, kannst du PyInstaller verwenden:
-
-1. PyInstaller installieren
-
-   ```bash
-
+```bash
 pip install pyinstaller
+```
 
-1. EXE erstellen
+EXE bauen:
 
-Führe folgenden Befehl im Projektverzeichnis aus:
-bash
-
+```bash
 pyinstaller --onefile --windowed pytank.py
+```
 
-Optionale Parameter:
+Die fertige Datei liegt danach in `dist/`.
 
-    --add-data "data;data": Falls du zusätzliche Dateien hast (z.B. Sounds)
-    --clean: Zwischendateien bereinigen
-    --debug=all: Debug-Informationen anzeigen
+Optional mit Icon:
 
-3. EXE finden
+```bash
+pyinstaller --onefile --windowed --icon=icon.ico pytank.py
+```
 
-Die erstellte EXE findest du im dist-Ordner.
-Alternative: Auto PY to EXE
+## Projektstruktur
 
-Eine benutzerfreundlichere Lösung ist das Tool "Auto PY to EXE":
-
-    Installiere es:
-
-   ```bash
-    pip install auto-py-to-exe
-
-    Führe es aus:
-   ```bash
-    auto-py-to-exe
-
-    Wähle in der GUI:
-        Script location: pytank.py
-        Onefile: ✓
-        Window based: ✓
-        Icon file: (optional)
-        Output directory: (wähle einen Ordner)
-
-📁 Projektstruktur
-text
-
+```text
 pytank/
-├── pytank.py          # Hauptspiel-Datei
-├── README.md          # Diese Datei
-├── requirements.txt   # Abhängigkeiten
-├── dist/              # (Erstellt von PyInstaller) EXE-Datei
-└── build/             # (Erstellt von PyInstaller) temporäre Dateien
+├── pytank.py              # Hauptspiel-Datei
+├── README.md              # Dokumentation
+├── requirements.txt       # Python-Abhängigkeiten
+├── tests/                 # Start-/Sound-/EXE-Tests
+├── .github/workflows/     # GitHub Actions CI
+├── dist/                  # Lokale Build-Ausgaben
+└── build/                 # Temporäre PyInstaller-Dateien
+```
 
-🎯 Spielziele
+## GitHub Actions
 
-    FFA Mode: Besiege alle Gegner und überlebe länger als dein Gegner
-    Horde Mode: Überlebe 10 Wellen von Gegnern
-    Co-op Mode: Arbeite mit einem Freund zusammen, um die Wellen zu besiegen
+Der CI-Workflow lintet und testet das Projekt unter unterstützten Python-Versionen. Für Pygame werden Dummy-SDL-Treiber bzw. Headless-kompatible Einstellungen verwendet.
 
-🏆 Highscores
+## Lizenz
 
-Das Spiel speichert keine Highscores permanent. Die beste Punktzahl wird während einer Session angezeigt.
-🐛 Fehler melden
-
-Falls du einen Fehler findest oder eine Verbesserung vorschlagen möchtest, erstelle bitte ein Issue auf GitHub.
-🤝 Mitwirken
-
-Pull Requests sind willkommen! Bitte achte darauf:
-
-    Fork das Projekt
-    Erstelle einen neuen Branch (git checkout -b feature/neue-funktion)
-    Commit deine Änderungen (git commit -am 'Neue Funktion hinzugefügt')
-    Push auf den Branch (git push origin feature/neue-funktion)
-    Erstelle einen Pull Request
-
-📄 Lizenz
-
-Dieses Projekt steht unter der MIT-Lizenz - siehe die LICENSE-Datei für Details.
-📞 Kontakt
-
-Projekt-Link: https://github.com/DaWasteh/pytank
-text
-
-
-### Wichtige Hinweise zur EXE-Erstellung:
-
-1. **Icon-Datei**: Erstelle eine `icon.ico`-Datei (z.B. mit einem Online-Converter) und legen sie im Projektverzeichnis ab.
-
-2. **Abhängigkeiten**: Falls du zusätzliche Dateien hast (z.B. Sounddateien), musst du diese mit `--add-data` einbinden:
-   ```bash
-   pyinstaller --onefile --windowed --icon=icon.ico --add-data "sounds;." pytank.py
-
-    Testen: Teste die erstellte EXE gründlich, da manchmal Pfadprobleme auftreten können.
-
-    Größe reduzieren: Für eine kleinere EXE kannst du folgende Optionen verwenden:
-   ```bash
-    pyinstaller --onefile --windowed --icon=icon.ico --clean --upx-dir=upx-3.96-win64 pytank.py
-
-    (Erfordert UPX: pip install upx)
-
-    64-Bit vs 32-Bit: Verwende Python 64-Bit für die beste Kompatibilität mit modernen Systemen.
-
-Diese README.md bietet eine vollständige Dokumentation für dein Spiel und enthält alle wichtigen Informationen für GitHub, inklusive der Anleitung zur EXE-Erstellung.
+Siehe Repository-Lizenzdatei.

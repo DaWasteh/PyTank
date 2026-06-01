@@ -1,0 +1,49 @@
+# ruff.toml
+
+target-version = "py311"
+line-length = 88
+
+[lint]
+select = [
+    "F",    # Pyflakes
+    "E",    # pycodestyle Errors
+    "W",    # pycodestyle Warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "FA",   # flake8-future-annotations
+    "C4",   # flake8-comprehensions
+    "RET",  # flake8-return
+    "RUF",  # Ruff-spezifische Regeln
+    "PTH",  # flake8-use-pathlib
+    "PT",   # flake8-pytest-style
+]
+
+# HIER IST DIE NEUE IGNORE-LISTE:
+ignore = [
+    "E501",    # Line too long: Der Formatter bricht Zeilen ohnehin um, wo es geht. Bei Strings/Listen nervt die Warnung nur.
+    "RUF012",  # Mutable class attributes: Zwingt dich, überall `typing.ClassVar` zu nutzen. Für Konfigurationsklassen völlig übertrieben.
+    "RUF002",  # Ambiguous unicode (Docstrings): Meckert über typografische Gedankenstriche (–) statt normalen Bindestrichen (-).
+    "RUF003",  # Ambiguous unicode (Comments): Dasselbe für normale Kommentare. Absolut irrelevant für die Code-Logik.
+    "SIM102",  # Nested Ifs: Manchmal sind verschachtelte if-Statements lesbarer als eine riesige Zeile mit `and`.
+    "SIM103",  # Return directly: `if x: return True else: return False` ist manchmal semantisch klarer, Ruff will das rigoros kürzen.
+    "PTH100",  # os.path.abspath: Meckert, weil du os.path statt pathlib nutzt (konnte nicht auto-gefixt werden).
+    "PTH120",  # os.path.dirname: Dasselbe hier. Für alte Tests oft den Aufwand nicht wert.
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+[lint.flake8-type-checking]
+strict = true
+
+[lint.isort]
+combine-as-imports = true
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

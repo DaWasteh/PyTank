@@ -14,23 +14,23 @@ try:
         text=True
     )
     elapsed = time.time() - start_time
-    
+
     print(f"Exit Code: {result.returncode}")
     print(f"Laufzeit: {elapsed:.2f}s")
-    
+
     if result.stderr:
         print("STDERR:")
         print(result.stderr)
-    
+
     if result.stdout:
         print("STDOUT:")
         print(result.stdout)
-    
+
     if result.returncode == 0:
         print("SUCCESS: exe hat normal beendet")
     else:
         print(f"FAILURE: exe mit Exit Code {result.returncode} beendet")
-        
+
 except subprocess.TimeoutExpired:
     print("TIMEOUT: exe läuft noch nach 10 Sekunden")
 except Exception as e:
